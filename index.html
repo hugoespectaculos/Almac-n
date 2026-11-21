@@ -265,11 +265,49 @@ function applyOp(op){
     var d=opDe(op),a=opA(op);if(d)setStock(l.pid,stk(p,d)-l.cant,d);if(a)setStock(l.pid,stk(p,a)+l.cant,a)});
   putOp(op);autoBackup(false);
 }
-function anular(op){
+function revertOp(op){
   op.lineas.forEach(function(l){var p=S.prods[l.pid];if(!p)return;
     if(op.tipo==='recuento'){var lc=opLoc(op);setStock(l.pid,stk(p,lc)-(l.dif||0),lc);return}
     var d=opDe(op),a=opA(op);if(d)setStock(l.pid,stk(p,d)+l.cant,d);if(a)setStock(l.pid,stk(p,a)-l.cant,a)});
-  delOp(op.id);
+}
+function anular(op){revertOp(op);delOp(op.id)}
+
+/* ---------- editar movimiento (mismo movimiento, mismo cliente) ---------- */
+function edOpen(o){UI.ed={id:o.id,tipo:o.tipo,ref:o.ref||'',nota:o.nota||'',lineas:o.lineas.map(function(l){return Object.assign({},l)}),material:(o.material||[]).map(function(m){return Object.assign({},m)})};edDraw()}
+function edSync(){var e=UI.ed;if(!e)return;var r=$('#eref'),n=$('#enota');if(r)e.ref=r.value;if(n)e.nota=n.value}
+function edQ(l){return UI.ed.tipo==='recuento'?(+l.contado||0):(+l.cant||0)}
+function edSetQ(l,v){v=Math.max(0,r2(v));if(UI.ed.tipo==='recuento')l.contado=v;else l.cant=v}
+function edKeep(){var sh=$('.sheet'),s=sh?sh.scrollTop:0;edDraw();sh=$('.sheet');if(sh)sh.scrollTop=s}
+function edDraw(){
+  var e=UI.ed,o=getOp(e&&e.id);if(!o){UI.ed=null;closeModal();return}
+  var M=MODES[e.tipo]||MODES.carga,rec=e.tipo==='recuento',used={};
+  var h='<div class="ov" data-a="close"><div class="sheet" data-a="noop" style="--c:'+M.c+'">';
+  h+='<h2>✏️ Editar '+esc(M.t.toLowerCase())+'</h2><p class="meta">'+fdate(o.ts)+' · '+route(o)+(o.quien?' · '+esc(o.quien):'')+'<br>Se corrige el <b>mismo movimiento</b>: no se anula, mantiene fecha y cliente, y el stock se recalcula solo.</p>';
+  h+='<label class="lb">'+esc(M.ref||'Referencia')+'</label><input id="eref" class="in" value="'+esc(e.ref)+'" autocomplete="off">';
+  h+='<label class="lb">'+(e.tipo==='carga'?'Bebida':'Productos')+' ('+e.lineas.length+')</label>';
+  if(!e.lineas.length)h+='<div class="meta">Sin productos</div>';
+  e.lineas.forEach(function(l,i){used[l.pid]=1;var q=edQ(l);h+='<div class="mrow'+(q>0||rec?'':' off')+'"><div class="grow"><b>'+esc(l.nombre)+'</b><div class="meta">'+fmtL(q,l)+(rec?' contado':'')+'</div></div><button class="pm" data-a="edl" data-i="'+i+'" data-s="-1">−</button><button class="num" data-a="edlpad" data-i="'+i+'">'+nf(q)+'</button><button class="pm plus" data-a="edl" data-i="'+i+'" data-s="1">+</button><button class="mini" style="color:#c92a2a" data-a="edldel" data-i="'+i+'">✕</button></div>'});
+  var av=prodList().filter(function(p){return !used[p.id]});
+  if(av.length)h+='<div class="hr" style="margin-top:8px"><select id="eadd" class="in" style="flex:1"><option value="">＋ Añadir producto…</option>'+av.map(function(p){return '<option value="'+p.id+'">'+esc(p.nombre)+'</option>'}).join('')+'</select><button class="ghost" data-a="edladd">Añadir</button></div>';
+  if(e.tipo==='carga'||e.material.length){
+    h+='<label class="lb">Material ('+e.material.length+')</label>';
+    e.material.forEach(function(m,i){h+='<div class="mrow'+(m.cant>0?'':' off')+'"><div class="grow">'+esc(m.nombre)+'</div><button class="pm" data-a="edm" data-i="'+i+'" data-s="-1">−</button><button class="num" data-a="edmpad" data-i="'+i+'">'+m.cant+'</button><button class="pm plus" data-a="edm" data-i="'+i+'" data-s="1">+</button><button class="mini" style="color:#c92a2a" data-a="edmdel" data-i="'+i+'">✕</button></div>'});
+    h+='<div class="hr" style="margin-top:8px"><input id="emat" class="in" style="flex:1" placeholder="Añadir material…"><button class="ghost" data-a="edmadd">Añadir</button></div>';
+  }
+  h+='<label class="lb">Nota (opcional)</label><textarea id="enota" class="in" rows="2">'+esc(e.nota)+'</textarea>';
+  h+='<p class="meta">Lo que quede a 0 se quita al guardar.</p>';
+  h+='<div class="pbtn"><button class="ghost lg" data-a="close">Cancelar</button><button class="big" data-a="edsave">Guardar cambios</button></div></div></div>';
+  openModal(h);
+}
+function edSave(){
+  edSync();var e=UI.ed,o=e&&getOp(e.id);if(!o)return;var rec=e.tipo==='recuento';
+  var lines=e.lineas.filter(function(l){return rec||edQ(l)>0}),mat=e.material.filter(function(m){return m.cant>0}),ref=e.ref.trim();
+  if(o.tipo==='carga'&&!ref){toast('El cliente/evento no puede quedar vacío',true);return}
+  if(!lines.length&&!mat.length){toast('No puede quedar vacío. Si sobra entero, usa Anular',true);return}
+  revertOp(o);
+  o.ref=ref;o.nota=e.nota.trim();o.lineas=lines;if(o.material||mat.length)o.material=mat;
+  o.editado=Date.now();o.editadoPor=UI.who||'';
+  applyOp(o);UI.ed=null;closeModal();render();toast('✔ Cambios guardados');
 }
 
 /* ---------- arranque ---------- */
@@ -460,6 +498,7 @@ function vCarga(){
   if(o.lineas.length){h+='<div class="sec"><h3>Bebida ('+o.lineas.filter(function(l){return l.chk}).length+'/'+o.lineas.length+')</h3>';o.lineas.forEach(function(l,i){h+=chkRow('L',i,l.nombre,fmtL(l.cant,l),l,closed)});h+='</div>'}
   if((o.material||[]).length){h+='<div class="sec"><h3>Material ('+o.material.filter(function(l){return l.chk}).length+'/'+o.material.length+')</h3>';o.material.forEach(function(l,i){h+=chkRow('M',i,l.nombre,'x '+l.cant,l,closed)});h+='</div>'}
   if(!closed)h+='<button class="btn2 full" data-a="cadd">＋ Añadir material a esta carga</button>';
+  h+='<button class="btn2 full" style="margin-top:10px" data-a="oedit" data-id="'+o.id+'">✏️ Corregir cantidades / material</button>';
   h+='</div>';
   if(!closed)h+='<div class="bar" style="--c:'+M.c+'"><div class="bsum">'+(g.d===g.t?'<span class="ok">✔ Todo cargado</span>':'Faltan <b>'+(g.t-g.d)+'</b>')+'</div><button class="ghost" data-a="cdel">Anular</button><button class="big" data-a="cclose">Terminar carga ✔</button></div>';
   else h+='<div class="bar" style="--c:#1971c2"><div class="bsum">¿Ya volvió del evento?</div><button class="big" data-a="devde" data-id="'+o.id+'">↩️ Apuntar lo que vuelve</button></div>';
@@ -523,12 +562,13 @@ function consumo(o){
 }
 function opDetail(o){
   var h='<div class="panel" style="margin-top:-4px">';
+  if(o.editado)h+='<p class="meta">✏️ Editado '+fdate(o.editado)+(o.editadoPor?' por '+esc(o.editadoPor):'')+'</p>';
   if(o.nota)h+='<p><b>Nota:</b> '+esc(o.nota)+'</p>';
   if(o.lineas.length){h+='<table>';if(o.tipo==='recuento'){h+='<tr><th>Producto</th><th class="r">Antes</th><th class="r">Contado</th><th class="r">Dif.</th></tr>';o.lineas.forEach(function(l){h+='<tr><td>'+esc(l.nombre)+'</td><td class="r">'+fmtL(l.antes,l)+'</td><td class="r">'+fmtL(l.contado,l)+'</td><td class="r '+((l.dif||0)<0?'neg':(l.dif||0)>0?'pos':'ok')+'">'+(l.dif?(l.dif>0?'+':'')+fmtL(l.dif,l):'✔')+'</td></tr>'})}
     else o.lineas.forEach(function(l){h+='<tr><td>'+(o.tipo==='carga'?(l.chk?'✅ ':'⬜ '):'')+esc(l.nombre)+'</td><td class="r"><b>'+fmtL(l.cant,l)+'</b></td></tr>'});h+='</table>'}
   if(o.material&&o.material.length){h+='<label class="lb">Material</label><table>';o.material.forEach(function(m){h+='<tr><td>'+(m.chk?'✅ ':'⬜ ')+esc(m.nombre)+'</td><td class="r">x '+m.cant+'</td></tr>'});h+='</table>'}
   if(o.tipo==='carga')h+=consumo(o);
-  h+='<div class="hr" style="margin-top:12px">'+(o.tipo==='carga'?'<button class="ghost" data-a="ocarga" data-id="'+o.id+'">Abrir lista de carga</button><button class="ghost" data-a="devde" data-id="'+o.id+'">↩️ Apuntar lo que vuelve</button>':'')+'<button class="ghost" style="color:#c92a2a" data-a="anu" data-id="'+o.id+'">Anular movimiento</button></div>';
+  h+='<div class="hr" style="margin-top:12px">'+(o.tipo==='carga'?'<button class="ghost" data-a="ocarga" data-id="'+o.id+'">Abrir lista de carga</button><button class="ghost" data-a="devde" data-id="'+o.id+'">↩️ Apuntar lo que vuelve</button>':'')+'<button class="ghost" data-a="oedit" data-id="'+o.id+'">✏️ Editar</button><button class="ghost" style="color:#c92a2a" data-a="anu" data-id="'+o.id+'">Anular movimiento</button></div>';
   return h+'</div>';
 }
 function vHist(){
@@ -707,6 +747,18 @@ var A={
   ht:function(t,d){UI.ht=d.c;render()},
   hop:function(t,d){UI.open=UI.open===d.id?null:d.id;if(UI.view!=='hist'){UI.view='hist';UI.ht='todos'}render()},
   anu:function(t,d){var o=getOp(d.id);if(!o)return;withPin('PIN para anular',function(){ask('¿Anular «'+esc(o.ref||MODES[o.tipo].t)+'» del '+fdate(o.ts)+'? El stock volverá a como estaba.','Anular',function(){anular(o);UI.open=null;render();toast('Movimiento anulado')},true)})},
+  oedit:function(t,d){var o=getOp(d.id);if(!o)return;withPin('PIN para editar',function(){edOpen(o)})},
+  edl:function(t,d){edSync();var l=UI.ed.lineas[d.i];edSetQ(l,edQ(l)+(+d.s));edKeep()},
+  edlpad:function(t,d){edSync();var l=UI.ed.lineas[d.i];openPad({title:l.nombre+' ('+pl(l.ud||'ud',2)+')',init:nf(edQ(l)),dec:true,color:(MODES[UI.ed.tipo]||MODES.carga).c,cb:function(v){edSetQ(l,pnum(v));setTimeout(edKeep,0)},back:edKeep})},
+  edldel:function(t,d){edSync();UI.ed.lineas.splice(+d.i,1);edKeep()},
+  edladd:function(){edSync();var s=$('#eadd'),p=s&&S.prods[s.value];if(!p){toast('Elige un producto',true);return}
+    var l={pid:p.id,nombre:p.nombre,n:pc(p),ud:udn(p)};if(UI.ed.tipo==='recuento')l.contado=0;else l.cant=0;if(UI.ed.tipo==='carga')l.chk=false;
+    UI.ed.lineas.push(l);openPad({title:p.nombre+' ('+pl(udn(p),2)+')',init:'',dec:true,color:(MODES[UI.ed.tipo]||MODES.carga).c,cb:function(v){edSetQ(l,pnum(v));setTimeout(edKeep,0)},back:edKeep})},
+  edm:function(t,d){edSync();var m=UI.ed.material[d.i];m.cant=Math.max(0,(m.cant||0)+(+d.s));edKeep()},
+  edmpad:function(t,d){edSync();var m=UI.ed.material[d.i];openPad({title:m.nombre,init:m.cant,color:MODES.carga.c,cb:function(v){m.cant=parseInt(v||'0',10)||0;setTimeout(edKeep,0)},back:edKeep})},
+  edmdel:function(t,d){edSync();UI.ed.material.splice(+d.i,1);edKeep()},
+  edmadd:function(){edSync();var i=$('#emat'),v=i?i.value.trim():'';if(!v)return;UI.ed.material.push({id:uid(),nombre:v,cant:1,chk:false});edKeep()},
+  edsave:function(){edSave()},
   pedit:function(t,d){prodEditor(d.p||null)},
   psave:function(t,d){var n=$('#pn').value.trim();if(!n){toast('Pon un nombre',true);return}
     var p=d.p?S.prods[d.p]:{id:uid(),stock:0,activo:true};
