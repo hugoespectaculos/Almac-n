@@ -443,7 +443,7 @@ function updCard(pid){var el=document.getElementById('c_'+pid);if(el&&S.prods[pi
 function cartLines(){
   return prodList().filter(function(p){return UI.cart[p.id]&&(UI.mode==='recuento'||lineTot(p.id)>0)}).map(function(p){
     var t=lineTot(p.id),l={pid:p.id,nombre:p.nombre,n:pc(p),ud:udn(p)};
-    if(UI.mode==='recuento')l.contado=t;else l.cant=t;return l});
+    if(UI.mode==='recuento')l.contado=t;else l.cant=t;if(UI.mode==='carga'&&+p.precio>0)l.precio=+p.precio;return l});
 }
 
 /* ---------- revisar y confirmar ---------- */
@@ -461,7 +461,8 @@ function review(){
   if(lines.length){
     h+='<label class="lb">'+(UI.mode==='carga'?'Bebida':'Productos')+' ('+lines.length+')</label><table>';
     if(UI.mode==='recuento'){h+='<tr><th>Producto</th><th class="r">Sistema</th><th class="r">Contado</th><th class="r">Dif.</th></tr>';lines.forEach(function(l){var p=S.prods[l.pid],d=r2(l.contado-stk(p,UI.loc));h+='<tr><td>'+esc(l.nombre)+'</td><td class="r">'+fmt(stk(p,UI.loc),p)+'</td><td class="r"><b>'+fmt(l.contado,p)+'</b></td><td class="r '+(d<0?'neg':d>0?'pos':'ok')+'">'+(d===0?'✔':(d>0?'+':'')+fmt(d,p))+'</td></tr>'})}
-    else lines.forEach(function(l){var p=S.prods[l.pid],warn=(UI.mode==='carga'||UI.mode==='traspaso')&&l.cant>stk(p,srcLoc());h+='<tr><td>'+esc(l.nombre)+(warn?' <span class="neg">⚠ hay '+fmt(stk(p,srcLoc()),p)+'</span>':'')+'</td><td class="r"><b>'+fmt(l.cant,p)+'</b></td></tr>'});
+    else lines.forEach(function(l){var p=S.prods[l.pid],warn=(UI.mode==='carga'||UI.mode==='traspaso')&&l.cant>stk(p,srcLoc());h+='<tr><td>'+esc(l.nombre)+(warn?' <span class="neg">⚠ hay '+fmt(stk(p,srcLoc()),p)+'</span>':'')+'</td><td class="r"><b>'+fmt(l.cant,p)+'</b>'+(UI.mode==='carga'&&lpr(l)?'<div class="meta">'+eur(l.cant*lpr(l))+'</div>':'')+'</td></tr>'});
+    if(UI.mode==='carga'){var vt=0;lines.forEach(function(l){vt+=l.cant*lpr(l)});if(vt)h+='<tr><td><b>💶 Valor (precio de venta)</b></td><td class="r"><b style="font-size:19px">'+eur(vt)+'</b></td></tr>'}
     h+='</table>';
   }
   if(UI.mode==='carga'){
@@ -501,6 +502,7 @@ function vCarga(){
   if((o.material||[]).length){h+='<div class="sec"><h3>Material ('+o.material.filter(function(l){return l.chk}).length+'/'+o.material.length+')</h3>';o.material.forEach(function(l,i){h+=chkRow('M',i,l.nombre,'x '+l.cant,l,closed)});h+='</div>'}
   if(!closed)h+='<button class="btn2 full" data-a="cadd">＋ Añadir material a esta carga</button>';
   h+='<button class="btn2 full" style="margin-top:10px" data-a="oedit" data-id="'+o.id+'">✏️ Corregir cantidades / material</button>';
+  h+='<div class="sec">'+(backOf(o)?consumo(o):valorHtml(o)+(hasPr(o)?'<button class="btn2 full" style="margin-top:8px" data-a="liqsh" data-id="'+o.id+'">📤 Enviar lo que se lleva (WhatsApp, email…)</button>':''))+'</div>';
   h+='</div>';
   if(!closed)h+='<div class="bar" style="--c:'+M.c+'"><div class="bsum">'+(g.d===g.t?'<span class="ok">✔ Todo cargado</span>':'Faltan <b>'+(g.t-g.d)+'</b>')+'</div><button class="ghost" data-a="cdel">Anular</button><button class="big" data-a="cclose">Terminar carga ✔</button></div>';
   else h+='<div class="bar" style="--c:#1971c2"><div class="bsum">¿Ya volvió del evento?</div><button class="big" data-a="devde" data-id="'+o.id+'">↩️ Apuntar lo que vuelve</button></div>';
@@ -555,12 +557,35 @@ function opRow(o,exp){
   if(o.tipo==='carga'){var dv=S.ops.some(function(d){return d.tipo==='devolucion'&&d.link===o.id});extra=o.estado==='abierta'?'<span class="tag y">cargando</span>':dv?'<span class="tag g">vuelto</span>':'<span class="tag">fuera</span>'}
   return '<button class="li" data-a="hop" data-id="'+o.id+'" style="border-left:6px solid '+M.c+'"><span class="ico">'+M.ic+'</span><div class="grow"><b>'+esc(o.ref||M.t)+'</b><div class="meta">'+M.t+' · '+route(o)+' · '+fdate(o.ts)+(o.quien?' · '+esc(o.quien):'')+' · '+o.lineas.length+' prod.'+(o.material&&o.material.length?' + '+o.material.length+' material':'')+'</div></div>'+extra+'</button>';
 }
+/* ---------- precios de venta ---------- */
+function eur(x){return (Math.round((+x||0)*100)/100).toFixed(2).replace('.',',')+' €'}
+function lpr(l){if(l.precio!=null&&+l.precio>0)return +l.precio;var p=S.prods[l.pid];return p&&+p.precio>0?+p.precio:0}
+function hasPr(o){return o.lineas.some(function(l){return lpr(l)>0})}
+function backOf(o){var back={},n=0;S.ops.forEach(function(d){if(d.tipo==='devolucion'&&d.link===o.id){n++;d.lineas.forEach(function(l){back[l.pid]=(back[l.pid]||0)+l.cant})}});return n?back:null}
+function valorHtml(o){
+  if(!o.lineas.length)return '';
+  if(!hasPr(o))return '<p class="meta">💶 Pon los precios de venta en ⚙️ Ajustes → <b>Precios de venta</b> para ver lo que vale esta carga.</p>';
+  var t=0,h='<label class="lb">💶 Valor de lo que sale (precio de venta)</label><table><tr><th>Producto</th><th class="r">Cantidad</th><th class="r">Precio/ud</th><th class="r">Importe</th></tr>';
+  o.lineas.forEach(function(l){var pr=lpr(l),im=r2(l.cant*pr);t+=im;h+='<tr><td>'+esc(l.nombre)+'</td><td class="r">'+fmtL(l.cant,l)+'<div class="meta">'+nf(l.cant)+' '+pl(l.ud||'ud',l.cant)+'</div></td><td class="r">'+(pr?eur(pr):'—')+'</td><td class="r"><b>'+(pr?eur(im):'—')+'</b></td></tr>'});
+  return h+'<tr><td colspan="3"><b>TOTAL</b></td><td class="r"><b style="font-size:20px">'+eur(t)+'</b></td></tr></table>';
+}
+function liqTotal(o){var back=backOf(o)||{},t=0;o.lineas.forEach(function(l){var c=Math.max(0,r2(l.cant-(back[l.pid]||0)));t+=c*lpr(l)});return r2(t)}
+function liqText(o){
+  var back=backOf(o),t=0,L=['TASKAS · Hugo Espectáculos',(back?'Liquidación':'Bebida que sale')+': '+(o.ref||''),'Fecha: '+fdate(o.ts),''];
+  o.lineas.forEach(function(l){var c=back?Math.max(0,r2(l.cant-(back[l.pid]||0))):l.cant,pr=lpr(l),im=r2(c*pr);t+=im;if(back&&!c)return;
+    L.push('- '+l.nombre+': '+nf(c)+' '+pl(l.ud||'ud',c)+(pr?' × '+eur(pr)+' = '+eur(im):''))});
+  L.push('');L.push((back?'TOTAL A PAGAR: ':'VALOR TOTAL: ')+eur(t));return L.join('\n');
+}
+function shareTxt(txt,title){if(navigator.share){navigator.share({title:title,text:txt}).catch(function(){})}else copyText(txt,title)}
 function consumo(o){
-  var devs=S.ops.filter(function(d){return d.tipo==='devolucion'&&d.link===o.id});if(!devs.length)return '';
-  var back={};devs.forEach(function(d){d.lineas.forEach(function(l){back[l.pid]=(back[l.pid]||0)+l.cant})});
-  var h='<label class="lb">Consumo del evento</label><table><tr><th>Producto</th><th class="r">Salió</th><th class="r">Volvió</th><th class="r">Consumido</th></tr>';
-  o.lineas.forEach(function(l){var b=back[l.pid]||0;h+='<tr><td>'+esc(l.nombre)+'</td><td class="r">'+fmtL(l.cant,l)+'</td><td class="r">'+fmtL(b,l)+'</td><td class="r"><b>'+fmtL(l.cant-b,l)+'</b><div class="meta">'+nf(l.cant-b)+' '+(l.ud||'ud')+'</div></td></tr>'});
-  return h+'</table>';
+  var back=backOf(o);if(!back)return '';var pr=hasPr(o),t=0;
+  var h='<label class="lb">Consumo del evento</label><table><tr><th>Producto</th><th class="r">Salió</th><th class="r">Volvió</th><th class="r">Consumido</th>'+(pr?'<th class="r">A pagar</th>':'')+'</tr>';
+  o.lineas.forEach(function(l){var b=back[l.pid]||0,c=Math.max(0,r2(l.cant-b)),p=lpr(l),im=r2(c*p);t+=im;h+='<tr><td>'+esc(l.nombre)+'</td><td class="r">'+fmtL(l.cant,l)+'</td><td class="r">'+fmtL(b,l)+'</td><td class="r"><b>'+fmtL(c,l)+'</b><div class="meta">'+nf(c)+' '+(l.ud||'ud')+'</div></td>'+(pr?'<td class="r"><b>'+(p?eur(im):'—')+'</b>'+(p?'<div class="meta">'+eur(p)+'/ud</div>':'')+'</td>':'')+'</tr>'});
+  if(pr)h+='<tr><td colspan="4"><b>TOTAL A PAGAR</b></td><td class="r"><b style="font-size:20px;color:#2b8a3e">'+eur(t)+'</b></td></tr>';
+  h+='</table>';
+  if(pr)h+='<button class="btn2 full" style="margin-top:8px" data-a="liqsh" data-id="'+o.id+'">📤 Enviar liquidación (WhatsApp, email…)</button>';
+  else h+='<p class="meta">💶 Pon los precios de venta en ⚙️ Ajustes para ver lo que sale a pagar.</p>';
+  return h;
 }
 function opDetail(o){
   var h='<div class="panel" style="margin-top:-4px">';
@@ -569,7 +594,7 @@ function opDetail(o){
   if(o.lineas.length){h+='<table>';if(o.tipo==='recuento'){h+='<tr><th>Producto</th><th class="r">Antes</th><th class="r">Contado</th><th class="r">Dif.</th></tr>';o.lineas.forEach(function(l){h+='<tr><td>'+esc(l.nombre)+'</td><td class="r">'+fmtL(l.antes,l)+'</td><td class="r">'+fmtL(l.contado,l)+'</td><td class="r '+((l.dif||0)<0?'neg':(l.dif||0)>0?'pos':'ok')+'">'+(l.dif?(l.dif>0?'+':'')+fmtL(l.dif,l):'✔')+'</td></tr>'})}
     else o.lineas.forEach(function(l){h+='<tr><td>'+(o.tipo==='carga'?(l.chk?'✅ ':'⬜ '):'')+esc(l.nombre)+'</td><td class="r"><b>'+fmtL(l.cant,l)+'</b></td></tr>'});h+='</table>'}
   if(o.material&&o.material.length){h+='<label class="lb">Material</label><table>';o.material.forEach(function(m){h+='<tr><td>'+(m.chk?'✅ ':'⬜ ')+esc(m.nombre)+'</td><td class="r">x '+m.cant+'</td></tr>'});h+='</table>'}
-  if(o.tipo==='carga')h+=consumo(o);
+  if(o.tipo==='carga')h+=backOf(o)?consumo(o):valorHtml(o);
   h+='<div class="hr" style="margin-top:12px">'+(o.tipo==='carga'?'<button class="ghost" data-a="ocarga" data-id="'+o.id+'">Abrir lista de carga</button><button class="ghost" data-a="devde" data-id="'+o.id+'">↩️ Apuntar lo que vuelve</button>':'')+'<button class="ghost" data-a="oedit" data-id="'+o.id+'">✏️ Editar</button><button class="ghost" style="color:#c92a2a" data-a="anu" data-id="'+o.id+'">Anular movimiento</button></div>';
   return h+'</div>';
 }
@@ -587,8 +612,8 @@ function vAjustes(){
   var ps=prodList(),h=top('⚙️ Ajustes',true)+'<div class="wrap">';
   h+='<div class="panel"><div class="hr" style="align-items:center"><h3 style="flex:1;margin:0">Productos ('+ps.length+')</h3><button class="big" data-a="pedit">＋ Nuevo</button></div>';
   if(!ps.length)h+='<p>No hay productos. Carga la lista y el stock de tu Excel (STOCK NAVE).</p><button class="btn2 full" data-a="seed">Cargar mis productos y stock del Excel</button>';
-  else h+='<div class="row3" style="margin:0 0 10px"><button class="btn2" data-a="xls">📥 Poner el stock de mi Excel</button><button class="btn2" data-a="sv26">📊 Poner «suelo llevar» del gasto 2026</button></div>';
-  var cat=null;ps.forEach(function(p){if(p.cat!==cat){cat=p.cat;h+='<div class="sec" style="margin-top:14px"><h3>'+esc(cat)+'</h3></div>'}h+='<button class="li" data-a="pedit" data-p="'+p.id+'"><div class="grow"><b>'+esc(p.nombre)+'</b><div class="meta">'+esc(p.formato||'')+' · '+pc(p)+' por '+cjn(p)+' · suelo llevar: '+(p.min?fmt(p.min,p):'auto')+'</div></div><span class="tag">Editar</span></button>'});
+  else h+='<div class="row3" style="margin:0 0 10px"><button class="btn2" data-a="precios">💶 Precios de venta</button><button class="btn2" data-a="xls">📥 Poner el stock de mi Excel</button><button class="btn2" data-a="sv26">📊 Poner «suelo llevar» del gasto 2026</button></div>';
+  var cat=null;ps.forEach(function(p){if(p.cat!==cat){cat=p.cat;h+='<div class="sec" style="margin-top:14px"><h3>'+esc(cat)+'</h3></div>'}h+='<button class="li" data-a="pedit" data-p="'+p.id+'"><div class="grow"><b>'+esc(p.nombre)+'</b><div class="meta">'+esc(p.formato||'')+' · '+pc(p)+' por '+cjn(p)+' · suelo llevar: '+(p.min?fmt(p.min,p):'auto')+(+p.precio>0?' · <b>'+eur(p.precio)+'/'+esc(udn(p))+'</b>':'')+'</div></div><span class="tag">Editar</span></button>'});
   h+='</div>';
   h+='<div class="panel"><div class="hr" style="align-items:center"><h3 style="flex:1;margin:0">Listas de material para cargas</h3><button class="ghost" data-a="plnew">＋ Nueva lista</button></div><p class="meta">Al cargar un bar se elige una lista y se marca cada cosa al subirla.</p>';
   plantList().forEach(function(pl,pi){
@@ -614,6 +639,7 @@ function prodEditor(pid){
   h+='<label class="lb">Categoría</label><select id="pcat" class="in">'+S.cfg.cats.map(function(c){return '<option'+(c===p.cat?' selected':'')+'>'+esc(c)+'</option>'}).join('')+'</select>';
   h+='<label class="lb">Formato (texto libre)</label><input id="pf" class="in" value="'+esc(p.formato)+'" placeholder="Ej: caja de 24 latas, barril 30 L">';
   h+='<div class="hr"><div style="flex:1"><label class="lb">Unidades por caja</label><input id="ppc" class="in" type="number" inputmode="numeric" value="'+pc(p)+'"></div><div style="flex:1"><label class="lb">Nombre de la unidad</label><input id="pud" class="in" value="'+esc(udn(p))+'" placeholder="ud, lata, botella, barril…"></div></div>';
+  h+='<label class="lb">Precio de venta (€ por '+esc(udn(p))+')</label><input id="ppr" class="in" inputmode="decimal" value="'+(+p.precio>0?nf(p.precio):'')+'" placeholder="Ej: 2,50">';
   h+='<label class="lb">Nombre del paquete grande</label><input id="pcj" class="in" value="'+esc(p.cj||'')+'" placeholder="caja (por defecto), saco, paquete…">';
   h+='<div class="hr"><div style="flex:1"><label class="lb">Lo que suelo llevar a un evento (unidades)</label><input id="pmin" class="in" type="number" inputmode="numeric" value="'+(p.min||0)+'"></div>'+(pid?'':'<div style="flex:1"><label class="lb">Stock inicial (unidades)</label><input id="pst" class="in" type="number" inputmode="numeric" value="0"></div>')+'</div>';
   h+='<p class="meta">Si lo dejas en <b>0</b>, la app lo calcula sola con la media de las últimas cargas. Si hay menos que esto, sale como 🟠 <b>Queda poco</b>.</p>';if(pid)h+='<p class="meta">Para corregir el stock usa <b>Recuento</b>, así queda registrado.</p>';
@@ -823,10 +849,15 @@ var A={
   edmdel:function(t,d){edSync();UI.ed.material.splice(+d.i,1);edKeep()},
   edmadd:function(){edSync();var i=$('#emat'),v=i?i.value.trim():'';if(!v)return;UI.ed.material.push({id:uid(),nombre:v,cant:1,chk:false});edKeep()},
   edsave:function(){edSave()},
+  precios:function(){var ps=prodList(),cat=null,h='<div class="ov" data-a="noop"><div class="sheet" data-a="noop"><h2>💶 Precios de venta</h2><p class="meta">Precio al que se lo cobras al cliente, por unidad (lata, botella, bolsa…). Déjalo vacío si no se cobra.</p>';
+    ps.forEach(function(p){if(p.cat!==cat){cat=p.cat;h+='<div class="sec" style="margin-top:12px"><h3>'+esc(cat)+'</h3></div>'}h+='<div class="mrow"><div class="grow"><b>'+esc(p.nombre)+'</b><div class="meta">€ por '+esc(udn(p))+(pc(p)>1?' · caja de '+pc(p):'')+'</div></div><input id="pr_'+p.id+'" class="in" style="width:120px;text-align:right" inputmode="decimal" value="'+(+p.precio>0?nf(p.precio):'')+'" placeholder="0,00"></div>'});
+    h+='<div class="pbtn"><button class="ghost lg" data-a="close">Cancelar</button><button class="big" data-a="prsave">Guardar precios</button></div></div></div>';openModal(h)},
+  prsave:function(){var n=0;prodList().forEach(function(p){var i=$('#pr_'+p.id);if(!i)return;var v=pnum(i.value),old=+p.precio>0?+p.precio:0;if(v!==old){if(v>0)p.precio=v;else delete p.precio;putProd(p);n++}});closeModal();render();toast('✔ Precios guardados'+(n?' ('+n+')':''))},
+  liqsh:function(t,d){var o=getOp(d.id);if(!o)return;shareTxt(liqText(o),(backOf(o)?'Liquidación ':'Carga ')+(o.ref||''))},
   pedit:function(t,d){prodEditor(d.p||null)},
   psave:function(t,d){var n=$('#pn').value.trim();if(!n){toast('Pon un nombre',true);return}
     var p=d.p?S.prods[d.p]:{id:uid(),stock:0,activo:true};
-    p.nombre=n;p.cat=$('#pcat').value;p.formato=$('#pf').value.trim();p.porCaja=Math.max(1,parseInt($('#ppc').value,10)||1);p.ud=$('#pud').value.trim()||'ud';var cjv=$('#pcj')?$('#pcj').value.trim().toLowerCase():'';if(cjv&&cjv!=='caja')p.cj=cjv;else delete p.cj;p.min=Math.max(0,parseInt($('#pmin').value,10)||0);
+    p.nombre=n;p.cat=$('#pcat').value;p.formato=$('#pf').value.trim();p.porCaja=Math.max(1,parseInt($('#ppc').value,10)||1);p.ud=$('#pud').value.trim()||'ud';var cjv=$('#pcj')?$('#pcj').value.trim().toLowerCase():'';if(cjv&&cjv!=='caja')p.cj=cjv;else delete p.cj;if($('#ppr')){var prv=pnum($('#ppr').value);if(prv>0)p.precio=prv;else delete p.precio}p.min=Math.max(0,parseInt($('#pmin').value,10)||0);
     var st=!d.p&&$('#pst')?parseInt($('#pst').value,10)||0:0;putProd(p);
     if(st>0)applyOp({id:uid(),ts:Date.now(),tipo:'recuento',ref:'Stock inicial',quien:'',nota:'',lineas:[{pid:p.id,nombre:p.nombre,n:pc(p),ud:udn(p),contado:st}]});
     closeModal();render();toast('✔ Guardado')},
