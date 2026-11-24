@@ -203,8 +203,10 @@ function pl(w,x){if(x===1||w==='ud')return w;if(/ín$/.test(w))return w.replace(
 function r2(x){return Math.round((+x||0)*100)/100}
 function nf(x){return String(r2(x)).replace('.',',')}
 function pnum(v){return r2(parseFloat(String(v||'0').replace(',','.'))||0)}
-function fmt(u,p){u=r2(u);var n=pc(p),neg=u<0,a=Math.abs(u);if(n<=1)return (neg?'−':'')+nf(a)+' '+pl(udn(p),a);var c=Math.floor(a/n+1e-9),r=r2(a-c*n),s='';if(c)s+=c+' cj';if(c&&r)s+=' + ';if(r)s+=nf(r)+' '+pl(udn(p),r);if(!c&&!r)s='0';return (neg?'−':'')+s}
-function fmtL(u,l){return fmt(u,{porCaja:l.n||1,ud:l.ud})}
+function fmt(u,p){u=r2(u);var n=pc(p),neg=u<0,a=Math.abs(u);if(n<=1)return (neg?'−':'')+nf(a)+' '+pl(udn(p),a);var c=Math.floor(a/n+1e-9),r=r2(a-c*n),s='';if(c)s+=c+' '+(p.cj?pl(p.cj,c):'cj');if(c&&r)s+=' + ';if(r)s+=nf(r)+' '+pl(udn(p),r);if(!c&&!r)s='0';return (neg?'−':'')+s}
+function fmtL(u,l){var p=l.pid&&S.prods[l.pid];return fmt(u,{porCaja:l.n||1,ud:l.ud,cj:l.cj||(p&&p.cj)})}
+function cjn(p){return (p&&p.cj)||'caja'}
+function cap(w){return w.charAt(0).toUpperCase()+w.slice(1)}
 function stk(p,l){return l==='C'?(+p.stockC||0):(+p.stock||0)}
 function totS(p){return r2(stk(p,'N')+stk(p,'C'))}
 var SUK=null,SUM={};
@@ -311,7 +313,7 @@ function edSave(){
 }
 
 /* ---------- arranque ---------- */
-function goLocal(){mode='local';var u=lsGet(LSU)||{};if(!prodList().length&&!S.ops.length&&!u.seeded){u.seeded=1;lsSet(LSU,u);seed()}u=lsGet(LSU)||{};if(!u.sv26&&prodList().length){u.sv26=1;lsSet(LSU,u);aplicarSuelo(false)}render()}
+function goLocal(){mode='local';var u=lsGet(LSU)||{};if(!prodList().length&&!S.ops.length&&!u.seeded){u.seeded=1;lsSet(LSU,u);seed()}u=lsGet(LSU)||{};if(!u.sv26&&prodList().length){u.sv26=1;lsSet(LSU,u);aplicarSuelo(false)}migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();render()}
 function init(){
   var c=lsGet(LS);if(c){S.prods=c.prods||{};S.ops=c.ops||[];if(c.cfg)S.cfg=Object.assign(S.cfg,c.cfg)}
   overlay();
@@ -325,7 +327,7 @@ function init(){
 function subscribe(){
   var got={p:0,o:0,c:0};stale=false;
   var st=setTimeout(function(){stale=true;setSync()},10000);
-  function ok(k,m){if(m&&!m.fromCache){got[k]=1;if(got.p&&got.o&&got.c){clearTimeout(st);stale=false}}}
+  function ok(k,m){if(m&&!m.fromCache){got[k]=1;if(got.p&&got.o&&got.c){clearTimeout(st);stale=false;if(!got.m){got.m=1;if(!prodList().length&&!S.ops.length)seed();migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8()}}}}
   function err(e){clearTimeout(st);if(e&&e.code==='revoked'){mode='local'}else stale=true;render()}
   db.collection('productos').onSnapshot(function(s){var m={};s.docs.forEach(function(d){m[d.id]=plain(d.data())});S.prods=m;overlay();saveLocal();ok('p',s.metadata);render()},err);
   db.collection('ops').orderBy('ts','desc').limit(500).onSnapshot(function(s){S.ops=s.docs.map(function(d){return plain(d.data())});overlay();saveLocal();ok('o',s.metadata);render()},err);
@@ -422,9 +424,9 @@ function linkLine(pid){if(!UI.link)return null;var r=null;UI.link.lineas.forEach
 function stepper(pid,f,label,val){return '<div class="step"><label>'+label+'</label><button class="pm" data-a="dec" data-p="'+pid+'" data-f="'+f+'">−</button><button class="num" data-a="pad" data-p="'+pid+'" data-f="'+f+'">'+nf(val)+'</button><button class="pm plus" data-a="inc" data-p="'+pid+'" data-f="'+f+'">+</button></div>'}
 function cardHtml(p){
   var n=pc(p),it=UI.cart[p.id],rec=UI.mode==='recuento',tot=lineTot(p.id),out=UI.mode==='carga'||UI.mode==='traspaso',here=stk(p,srcLoc());
-  var h='<div class="card'+(it&&(tot>0||rec)?' sel':'')+'" id="c_'+p.id+'"><div class="ch"><div><h3>'+esc(p.nombre)+'</h3><div class="meta">'+esc(p.formato||'')+(n>1?' · '+n+' por caja':'')+'</div></div><div class="stk'+(isLow(p)?' low':'')+'">'+fmt(stk(p,srcLoc()),p)+'<small>'+LOCI[srcLoc()]+' en '+LOCN[srcLoc()].toLowerCase()+'</small><small>Total: '+fmt(totS(p),p)+'</small></div></div>';
+  var h='<div class="card'+(it&&(tot>0||rec)?' sel':'')+'" id="c_'+p.id+'"><div class="ch"><div><h3>'+esc(p.nombre)+'</h3><div class="meta">'+esc(p.formato||'')+(n>1?' · '+n+' por '+cjn(p):'')+'</div></div><div class="stk'+(isLow(p)?' low':'')+'">'+fmt(stk(p,srcLoc()),p)+'<small>'+LOCI[srcLoc()]+' en '+LOCN[srcLoc()].toLowerCase()+'</small><small>Total: '+fmt(totS(p),p)+'</small></div></div>';
   if(UI.mode==='devolucion'&&UI.link){var l=linkLine(p.id);if(l)h+='<div class="took">Se llevó: <b>'+fmtL(l.cant,l)+'</b></div>'}
-  if(n>1)h+=stepper(p.id,'c','Cajas de '+n,it?it.c:0);
+  if(n>1)h+=stepper(p.id,'c',cap(pl(cjn(p),2))+' de '+n,it?it.c:0);
   h+=stepper(p.id,'u',n>1?'Sueltas':(udn(p)==='ud'?'Unidades':udn(p)),it?it.u:0);
   if(it){
     if(rec){var d=r2(tot-here);h+='<div class="res">Contado: <b>'+fmt(tot,p)+'</b> · '+(d===0?'<span class="ok">✔ cuadra</span>':'<span class="'+(d<0?'neg':'pos')+'">'+(d>0?'+':'')+fmt(d,p)+'</span>')+' <button class="mini" data-a="untouch" data-p="'+p.id+'">No contar</button></div>'}
@@ -586,7 +588,7 @@ function vAjustes(){
   h+='<div class="panel"><div class="hr" style="align-items:center"><h3 style="flex:1;margin:0">Productos ('+ps.length+')</h3><button class="big" data-a="pedit">＋ Nuevo</button></div>';
   if(!ps.length)h+='<p>No hay productos. Carga la lista y el stock de tu Excel (STOCK NAVE).</p><button class="btn2 full" data-a="seed">Cargar mis productos y stock del Excel</button>';
   else h+='<div class="row3" style="margin:0 0 10px"><button class="btn2" data-a="xls">📥 Poner el stock de mi Excel</button><button class="btn2" data-a="sv26">📊 Poner «suelo llevar» del gasto 2026</button></div>';
-  var cat=null;ps.forEach(function(p){if(p.cat!==cat){cat=p.cat;h+='<div class="sec" style="margin-top:14px"><h3>'+esc(cat)+'</h3></div>'}h+='<button class="li" data-a="pedit" data-p="'+p.id+'"><div class="grow"><b>'+esc(p.nombre)+'</b><div class="meta">'+esc(p.formato||'')+' · '+pc(p)+' por caja · suelo llevar: '+(p.min?fmt(p.min,p):'auto')+'</div></div><span class="tag">Editar</span></button>'});
+  var cat=null;ps.forEach(function(p){if(p.cat!==cat){cat=p.cat;h+='<div class="sec" style="margin-top:14px"><h3>'+esc(cat)+'</h3></div>'}h+='<button class="li" data-a="pedit" data-p="'+p.id+'"><div class="grow"><b>'+esc(p.nombre)+'</b><div class="meta">'+esc(p.formato||'')+' · '+pc(p)+' por '+cjn(p)+' · suelo llevar: '+(p.min?fmt(p.min,p):'auto')+'</div></div><span class="tag">Editar</span></button>'});
   h+='</div>';
   h+='<div class="panel"><div class="hr" style="align-items:center"><h3 style="flex:1;margin:0">Listas de material para cargas</h3><button class="ghost" data-a="plnew">＋ Nueva lista</button></div><p class="meta">Al cargar un bar se elige una lista y se marca cada cosa al subirla.</p>';
   plantList().forEach(function(pl,pi){
@@ -612,6 +614,7 @@ function prodEditor(pid){
   h+='<label class="lb">Categoría</label><select id="pcat" class="in">'+S.cfg.cats.map(function(c){return '<option'+(c===p.cat?' selected':'')+'>'+esc(c)+'</option>'}).join('')+'</select>';
   h+='<label class="lb">Formato (texto libre)</label><input id="pf" class="in" value="'+esc(p.formato)+'" placeholder="Ej: caja de 24 latas, barril 30 L">';
   h+='<div class="hr"><div style="flex:1"><label class="lb">Unidades por caja</label><input id="ppc" class="in" type="number" inputmode="numeric" value="'+pc(p)+'"></div><div style="flex:1"><label class="lb">Nombre de la unidad</label><input id="pud" class="in" value="'+esc(udn(p))+'" placeholder="ud, lata, botella, barril…"></div></div>';
+  h+='<label class="lb">Nombre del paquete grande</label><input id="pcj" class="in" value="'+esc(p.cj||'')+'" placeholder="caja (por defecto), saco, paquete…">';
   h+='<div class="hr"><div style="flex:1"><label class="lb">Lo que suelo llevar a un evento (unidades)</label><input id="pmin" class="in" type="number" inputmode="numeric" value="'+(p.min||0)+'"></div>'+(pid?'':'<div style="flex:1"><label class="lb">Stock inicial (unidades)</label><input id="pst" class="in" type="number" inputmode="numeric" value="0"></div>')+'</div>';
   h+='<p class="meta">Si lo dejas en <b>0</b>, la app lo calcula sola con la media de las últimas cargas. Si hay menos que esto, sale como 🟠 <b>Queda poco</b>.</p>';if(pid)h+='<p class="meta">Para corregir el stock usa <b>Recuento</b>, así queda registrado.</p>';
   h+='<div class="pbtn">'+(pid?'<button class="ghost lg" style="color:#c92a2a" data-a="pdel" data-p="'+pid+'">Eliminar</button>':'')+'<button class="ghost lg" data-a="close">Cancelar</button><button class="big" data-a="psave" data-p="'+(pid||'')+'">Guardar</button></div></div></div>';
@@ -621,6 +624,65 @@ var XL={'Larios Rosé':5,'Brugal':0.5,'Arehucas':2.5,'Cacique':1.5,'Bacardi blan
 var SV26={"Seagrams": 6, "Larios Rosé": 2, "Barceló": 9, "Brugal": 4, "Arehucas": 2, "JB": 3, "Ballantines": 5, "Eristoff": 3, "Coca-Cola": 191, "Coca-Cola Zero": 53, "Schweppes naranja": 54, "Schweppes limón": 62, "Seven Up": 37, "Tónica": 65, "Radler": 24, "Barril": 5, "Estrella 0,0 tostada": 30, "Hielo": 9, "Vasos copa": 2, "Beefeater": 4, "Bacardi blanco": 2, "Cacique": 2, "Fireball": 1, "Red Bull": 24, "Agua": 57, "Mosto": 6, "Martini rojo": 4, "Martini blanco": 2, "Estrella botellín": 123, "Aquarade": 12, "Trina": 17, "Vasos caña": 1, "Red Label": 3, "Coca-Cola 2L": 2, "Casera 1,5L": 2, "Limón 2L": 3, "Jumpers": 2, "Patatas Marina": 2};
 function aplicarSuelo(force){var m={};Object.keys(SV26).forEach(function(k){m[norm(k)]=SV26[k]});var n=0;
   prodList().forEach(function(p){var v=m[norm(p.nombre)];if(v==null)return;if(force||!(p.min>0)){if(p.min!==v){p.min=v;putProd(p);n++}}});return n}
+/* ---------- correcciones de cajas (se aplican una vez, compartidas) ---------- */
+var MIG_CAJAS=[
+  {n:'Estrella botellín',pc:30,ud:'botellín',f:'quinto'},{n:'Estrella 0,0',pc:30,ud:'botellín',f:'quinto'},{n:'Estrella 0,0 tostada',pc:30,ud:'botellín',f:'quinto'},
+  {n:'Radler',pc:24,ud:'botellín',f:'tercio'},{n:'Red Bull',pc:24,ud:'lata',f:'lata'},
+  {n:'Coca-Cola',pc:24,ud:'lata',f:'lata · Top Cash'},{n:'Coca-Cola Zero',pc:24,ud:'lata',f:'lata · Top Cash'},{n:'Kas naranja',pc:24,ud:'lata',f:'lata · Top Cash'},{n:'Seven Up',pc:24,ud:'lata',f:'lata · Top Cash'},
+  {n:'Coca-Cola cristal',pc:24,ud:'botellín',f:'cristal · Moreiras',nuevo:1},{n:'Coca-Cola Zero cristal',pc:24,ud:'botellín',f:'cristal · Moreiras',nuevo:1},
+  {n:'Kas naranja cristal',pc:24,ud:'botellín',f:'cristal · Moreiras',nuevo:1},{n:'Seven Up cristal',pc:24,ud:'botellín',f:'cristal · Moreiras',nuevo:1}
+];
+function migrarCajas(){
+  if(!prodList().length)return;S.cfg.mig=S.cfg.mig||[];if(S.cfg.mig.indexOf('cajas1')>=0)return;
+  var byN={};Object.keys(S.prods).forEach(function(k){var p=S.prods[k];if(p)byN[norm(p.nombre)]=p});
+  MIG_CAJAS.forEach(function(m){var p=byN[norm(m.n)];
+    if(p){p.porCaja=m.pc;p.ud=m.ud;p.formato=m.f;if(m.nuevo)p.activo=true;putProd(p)}
+    else if(m.nuevo)putProd({id:uid()+Math.random().toString(36).slice(2,4),nombre:m.n,cat:'Refrescos',formato:m.f,porCaja:m.pc,ud:m.ud,min:0,stock:0,activo:true})});
+  S.cfg.mig.push('cajas1');putCfg();
+}
+function migrarCajas2(){
+  if(!prodList().length)return;S.cfg.mig=S.cfg.mig||[];if(S.cfg.mig.indexOf('cajas2')>=0)return;
+  Object.keys(S.prods).forEach(function(k){var p=S.prods[k];if(p&&norm(p.nombre)===norm('Hielo')){p.porCaja=5;p.ud='bolsa';p.cj='saco';p.formato='bolsa de 2 kg · saco de 5 bolsas';putProd(p)}});
+  S.cfg.mig.push('cajas2');putCfg();
+}
+var MIG_VASOS={'Vasos copa':[16,25,'copa PP 480 cc'],'Vasos caña':[40,50,'caña PP 330 cc'],'Vasos cachi':[20,25,'cachi PET 1000 cc'],'Vasos chupito':[50,20,'chupito PS 35 cc']};
+function migrarCajas3(){
+  if(!prodList().length)return;S.cfg.mig=S.cfg.mig||[];if(S.cfg.mig.indexOf('cajas3')>=0)return;
+  var m={};Object.keys(MIG_VASOS).forEach(function(k){m[norm(k)]=MIG_VASOS[k]});
+  Object.keys(S.prods).forEach(function(k){var p=S.prods[k],v=p&&m[norm(p.nombre)];if(!v)return;p.porCaja=v[0];p.ud='paquete';delete p.cj;p.formato=v[2]+' · paquete de '+v[1]+' vasos · caja de '+v[0]+' paquetes';putProd(p)});
+  S.cfg.mig.push('cajas3');putCfg();
+}
+function migrarCajas4(){
+  if(!prodList().length)return;S.cfg.mig=S.cfg.mig||[];if(S.cfg.mig.indexOf('cajas4')>=0)return;
+  Object.keys(S.prods).forEach(function(k){var p=S.prods[k];if(p&&norm(p.nombre)===norm('Vasos copa')){p.porCaja=1;p.ud='caja';delete p.cj;p.formato='copa PP 480 cc · caja de 525 vasos (solo caja completa)';putProd(p)}});
+  S.cfg.mig.push('cajas4');putCfg();
+}
+function migrarCajas5(){
+  if(!prodList().length)return;S.cfg.mig=S.cfg.mig||[];if(S.cfg.mig.indexOf('cajas5')>=0)return;
+  Object.keys(S.prods).forEach(function(k){var p=S.prods[k];if(p&&norm(p.nombre)===norm('Vasos copa')){p.porCaja=1;p.ud='caja';delete p.cj;p.formato='copa PP 480 cc · caja de 525 vasos (solo caja completa)';putProd(p)}});
+  S.cfg.mig.push('cajas5');putCfg();
+}
+function migrarCajas6(){
+  if(!prodList().length)return;S.cfg.mig=S.cfg.mig||[];if(S.cfg.mig.indexOf('cajas6')>=0)return;
+  Object.keys(S.prods).forEach(function(k){var p=S.prods[k];if(p&&norm(p.nombre)===norm('Schweppes limón')){p.porCaja=28;p.ud='lata';p.formato='lata · caja de 28';putProd(p)}});
+  S.cfg.mig.push('cajas6');putCfg();
+}
+function migrarCajas7(){
+  if(!prodList().length)return;S.cfg.mig=S.cfg.mig||[];if(S.cfg.mig.indexOf('cajas7')>=0)return;
+  var n28=[norm('Schweppes naranja'),norm('Tónica'),norm('Schweppes limón')];
+  Object.keys(S.prods).forEach(function(k){var p=S.prods[k];if(p&&n28.indexOf(norm(p.nombre))>=0){p.porCaja=28;p.ud='lata';p.formato='lata · caja de 28';putProd(p)}});
+  S.cfg.mig.push('cajas7');putCfg();
+}
+function migrarCajas8(){
+  if(!prodList().length)return;S.cfg.mig=S.cfg.mig||[];if(S.cfg.mig.indexOf('cajas8')>=0)return;
+  var byN={};Object.keys(S.prods).forEach(function(k){var p=S.prods[k];if(p)byN[norm(p.nombre)]=p});
+  ['Schweppes naranja','Schweppes limón','Tónica'].forEach(function(n){
+    var p=byN[norm(n)];if(p){p.porCaja=24;p.ud='lata';p.formato='lata · Top Cash';putProd(p)}
+    var c=byN[norm(n+' cristal')];
+    if(c){c.porCaja=28;c.ud='botellín';c.formato='cristal · Moreiras';c.activo=true;putProd(c)}
+    else putProd({id:uid()+Math.random().toString(36).slice(2,4),nombre:n+' cristal',cat:'Refrescos',formato:'cristal · Moreiras',porCaja:28,ud:'botellín',min:0,stock:0,activo:true})});
+  S.cfg.mig.push('cajas8');putCfg();
+}
 function excelStock(){
   var m={};Object.keys(XL).forEach(function(k){m[norm(k)]=XL[k]});
   var lines=[];prodList().forEach(function(p){var v=m[norm(p.nombre)];if(v==null)return;if(r2(v)!==r2(p.stock||0))lines.push({pid:p.id,nombre:p.nombre,n:pc(p),ud:udn(p),contado:v})});
@@ -640,13 +702,15 @@ function seed(){
     'Refrescos|botella|1':['Coca-Cola 2L','Limón 2L','Casera 1,5L'],
     'Zumos|ud|24':['Zumo de naranja','Zumo de melocotón','Zumo de piña'],
     'Agua|botella|24':['Agua'],
-    'Cerveza|botellín|24':['Radler','Estrella botellín','Estrella 0,0','Estrella 0,0 tostada'],
+    'Refrescos|botellín|24':['Coca-Cola cristal','Coca-Cola Zero cristal','Kas naranja cristal','Seven Up cristal'],
+    'Cerveza|botellín|24':['Radler'],
+    'Cerveza|botellín|30':['Estrella botellín','Estrella 0,0','Estrella 0,0 tostada'],
     'Cerveza|barril|1':['Barril'],
     'Snacks|bolsa|1':['Patatas Ugarsa','Patatas Marina','Jumpers','Jumpers ketchup'],
     'Barra y consumibles|ud|1':['Co2','Vasos caña','Vasos cachi','Vasos chupito','Vasos copa','Hielo']
   };
   Object.keys(G).forEach(function(k){var a=k.split('|');G[k].forEach(function(n){putProd({id:uid()+Math.random().toString(36).slice(2,4),nombre:n,cat:a[0],formato:'',porCaja:+a[2],ud:a[1],min:0,stock:0,activo:true})})});
-  plantList();putCfg();var n=excelStock();aplicarSuelo(false);render();toast('✔ Productos y stock del Excel cargados ('+n+' con stock)');
+  plantList();putCfg();var n=excelStock();aplicarSuelo(false);migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();render();toast('✔ Productos y stock del Excel cargados ('+n+' con stock)');
 }
 function today(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
 function snapshot(ops){var o={app:'stockNave',v:1,fecha:new Date().toISOString(),ts:Date.now(),prods:S.prods,cfg:S.cfg};if(ops)o.ops=ops;return plain(o)}
@@ -708,7 +772,7 @@ var A={
   cat:function(t,d){UI.cat=d.c;UI.q='';var q=$('#q');if(q)q.value='';$('#tabs').innerHTML=tabsHtml();$('#grid').innerHTML=gridHtml()},
   inc:function(t,d){var p=S.prods[d.p],it=UI.cart[d.p]||{c:0,u:0};it[d.f]++;if(d.f==='u'&&pc(p)>1&&it.u>=pc(p)&&UI.mode!=='recuento'){it.c++;it.u-=pc(p)}UI.cart[d.p]=it;updCard(d.p)},
   dec:function(t,d){var it=UI.cart[d.p];if(!it){if(UI.mode==='recuento'){UI.cart[d.p]={c:0,u:0};updCard(d.p)}return}if(it[d.f]>0)it[d.f]=r2(Math.max(0,it[d.f]-1));if(UI.mode!=='recuento'&&it.c===0&&it.u===0)delete UI.cart[d.p];updCard(d.p)},
-  pad:function(t,d){var p=S.prods[d.p],it=UI.cart[d.p];openPad({title:p.nombre+' · '+(d.f==='c'?'cajas de '+pc(p):(pc(p)>1?'sueltas':udn(p))),init:it?nf(it[d.f]):0,dec:d.f==='u',color:MODES[UI.mode].c,cb:function(v){var x=UI.cart[d.p]||{c:0,u:0};x[d.f]=d.f==='c'?(parseInt(v||'0',10)||0):pnum(v);UI.cart[d.p]=x;if(UI.mode!=='recuento'&&x.c===0&&x.u===0)delete UI.cart[d.p];updCard(d.p)}})},
+  pad:function(t,d){var p=S.prods[d.p],it=UI.cart[d.p];openPad({title:p.nombre+' · '+(d.f==='c'?pl(cjn(p),2)+' de '+pc(p):(pc(p)>1?'sueltas':udn(p))),init:it?nf(it[d.f]):0,dec:d.f==='u',color:MODES[UI.mode].c,cb:function(v){var x=UI.cart[d.p]||{c:0,u:0};x[d.f]=d.f==='c'?(parseInt(v||'0',10)||0):pnum(v);UI.cart[d.p]=x;if(UI.mode!=='recuento'&&x.c===0&&x.u===0)delete UI.cart[d.p];updCard(d.p)}})},
   setloc:function(t,d){UI.loc=d.v;render()},
   setdir:function(t,d){UI.dir=d.v;render()},
   untouch:function(t,d){delete UI.cart[d.p];updCard(d.p)},
@@ -762,7 +826,7 @@ var A={
   pedit:function(t,d){prodEditor(d.p||null)},
   psave:function(t,d){var n=$('#pn').value.trim();if(!n){toast('Pon un nombre',true);return}
     var p=d.p?S.prods[d.p]:{id:uid(),stock:0,activo:true};
-    p.nombre=n;p.cat=$('#pcat').value;p.formato=$('#pf').value.trim();p.porCaja=Math.max(1,parseInt($('#ppc').value,10)||1);p.ud=$('#pud').value.trim()||'ud';p.min=Math.max(0,parseInt($('#pmin').value,10)||0);
+    p.nombre=n;p.cat=$('#pcat').value;p.formato=$('#pf').value.trim();p.porCaja=Math.max(1,parseInt($('#ppc').value,10)||1);p.ud=$('#pud').value.trim()||'ud';var cjv=$('#pcj')?$('#pcj').value.trim().toLowerCase():'';if(cjv&&cjv!=='caja')p.cj=cjv;else delete p.cj;p.min=Math.max(0,parseInt($('#pmin').value,10)||0);
     var st=!d.p&&$('#pst')?parseInt($('#pst').value,10)||0:0;putProd(p);
     if(st>0)applyOp({id:uid(),ts:Date.now(),tipo:'recuento',ref:'Stock inicial',quien:'',nota:'',lineas:[{pid:p.id,nombre:p.nombre,n:pc(p),ud:udn(p),contado:st}]});
     closeModal();render();toast('✔ Guardado')},
