@@ -167,6 +167,8 @@ td.r,th.r{text-align:right}
 (function(){
 'use strict';
 var LS='stockNave_v1', LSU='stockNave_ui', OB='stockNave_outbox';
+var APPV=6,APPD='25/11/2026';
+function checkUpd(){if(!window.fetch||!/^https?:/.test(location.protocol)||/claude/.test(location.hostname))return;fetch(location.pathname+'?x='+Date.now(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(t){var m=t.match(/var APPV=(\d+)/);if(m&&+m[1]>APPV){var k='upd'+m[1];try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1')}catch(e){}location.replace(location.pathname+'?v='+m[1])}}).catch(function(){})}
 var MODES={
   carga:{t:'Sale bebida',c:'#e8590c',ic:'🚚',sign:-1,ref:'Cliente / evento',refPh:'Ej: Fiestas de Morla',ok:'CONFIRMAR Y EMPEZAR A CARGAR'},
   devolucion:{t:'Vuelve bebida',c:'#1971c2',ic:'↩️',sign:1,ref:'Vuelve de',refPh:'Evento',ok:'CONFIRMAR LO QUE VUELVE'},
@@ -318,7 +320,7 @@ function init(){
   var c=lsGet(LS);if(c){S.prods=c.prods||{};S.ops=c.ops||[];if(c.cfg)S.cfg=Object.assign(S.cfg,c.cfg)}
   overlay();
   var u=lsGet(LSU);if(u&&u.who)UI.who=u.who;
-  render();
+  render();checkUpd();document.addEventListener('visibilitychange',function(){if(!document.hidden)checkUpd()});
   var done=false,t=setTimeout(function(){if(!done)goLocal()},10000);
   if(!window.claude||typeof window.claude.use!=='function'){clearTimeout(t);goLocal();return}
   window.claude.use('downloads').then(function(d){dl=d},function(){});
@@ -362,7 +364,7 @@ function cargaProg(o){var t=o.lineas.length+(o.material||[]).length,d=o.lineas.f
 function vHome(){
   var ps=prodList(),low=ps.filter(isLow),conSt=ps.filter(function(p){return stk(p,'N')>0}).length,conC=ps.filter(function(p){return stk(p,'C')>0}).length,fu=fuera().length;
   var d=new Date(),fecha=d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
-  var h='<div class="hero"><img src="'+LOGO+'" alt="Taskas by Hugo Espectáculos"><div><div class="brand">TASKAS · HUGO ESPECTÁCULOS</div><h1>Almacén de bebida</h1><div class="sub">'+fecha.charAt(0).toUpperCase()+fecha.slice(1)+'</div></div><div class="sync" id="sync">'+syncHtml()+'</div></div><div class="wrap">';
+  var h='<div class="hero"><img src="'+LOGO+'" alt="Taskas by Hugo Espectáculos"><div><div class="brand">TASKAS · HUGO ESPECTÁCULOS</div><h1>Almacén de bebida</h1><div class="sub">'+fecha.charAt(0).toUpperCase()+fecha.slice(1)+'</div><div class="sub" style="opacity:.75;font-size:14px">Versión '+APPV+' · '+APPD+'</div></div><div class="sync" id="sync">'+syncHtml()+'</div></div><div class="wrap">';
   var cE={ok:0,poco:0,no:0};ps.forEach(function(p){cE[estado(p)]++});
   if(ps.length)h+='<div class="stats"><button class="stat" data-a="go" data-v="stock" data-f="_ok"><b style="color:#2b8a3e">'+cE.ok+'</b><span>🟢 Tengo</span></button><button class="stat" data-a="go" data-v="stock" data-f="_poco"><b style="color:#e8590c">'+cE.poco+'</b><span>🟠 Queda poco</span></button><button class="stat" data-a="go" data-v="stock" data-f="_no"><b style="color:#e03131">'+cE.no+'</b><span>🔴 No hay</span></button><button class="stat" data-a="go" data-v="hist"><b style="color:#1971c2">'+fu+'</b><span>↩️ Eventos sin devolver</span></button></div>';
   if(!ps.length)h+='<div class="empty"><h2>Aún no hay productos</h2><p>Entra en Ajustes para dar de alta tu bebida, o carga el catálogo de ejemplo para probar.</p><button class="btn2" data-a="ajustes" style="display:inline-block">⚙️ Ir a Ajustes</button></div>';
