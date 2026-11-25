@@ -167,7 +167,7 @@ td.r,th.r{text-align:right}
 (function(){
 'use strict';
 var LS='stockNave_v1', LSU='stockNave_ui', OB='stockNave_outbox';
-var APPV=7,APPD='25/11/2026';
+var APPV=8,APPD='25/11/2026';
 function checkUpd(){if(!window.fetch||!/^https?:/.test(location.protocol)||/claude/.test(location.hostname))return;fetch(location.pathname+'?x='+Date.now(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(t){var m=t.match(/var APPV=(\d+)/);if(m&&+m[1]>APPV){var k='upd'+m[1];try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1')}catch(e){}location.replace(location.pathname+'?v='+m[1])}}).catch(function(){})}
 var MODES={
   carga:{t:'Sale bebida',c:'#e8590c',ic:'🚚',sign:-1,ref:'Cliente / evento',refPh:'Ej: Fiestas de Morla',ok:'CONFIRMAR Y EMPEZAR A CARGAR'},
@@ -430,6 +430,7 @@ function cardHtml(p){
   if(UI.mode==='devolucion'&&UI.link){var l=linkLine(p.id);if(l)h+='<div class="took">Se llevó: <b>'+fmtL(l.cant,l)+'</b></div>'}
   if(n>1)h+=stepper(p.id,'c',cap(pl(cjn(p),2))+' de '+n,it?it.c:0);
   h+=stepper(p.id,'u',n>1?'Sueltas':(udn(p)==='ud'?'Unidades':udn(p)),it?it.u:0);
+  if(n===1)h+='<div class="hr" style="margin-top:6px;gap:8px"><button class="mini" data-a="half" data-p="'+p.id+'">+ ½</button><button class="mini" style="flex:1" data-a="pad" data-p="'+p.id+'" data-f="u">✏️ Escribir cantidad exacta (0,3 · 0,5…)</button></div>';
   if(it){
     if(rec){var d=r2(tot-here);h+='<div class="res">Contado: <b>'+fmt(tot,p)+'</b> · '+(d===0?'<span class="ok">✔ cuadra</span>':'<span class="'+(d<0?'neg':'pos')+'">'+(d>0?'+':'')+fmt(d,p)+'</span>')+' <button class="mini" data-a="untouch" data-p="'+p.id+'">No contar</button></div>'}
     else if(tot>0)h+='<div class="res">Total: <b>'+nf(tot)+' '+pl(udn(p),tot)+'</b>'+(n>1?' ('+fmt(tot,p)+')':'')+(out&&tot>here?' <span class="neg">⚠ más de lo que hay</span>':'')+'</div>';
@@ -877,6 +878,7 @@ var A={
     h+='<div class="pbtn"><button class="ghost lg" data-a="close">Cancelar</button><button class="big" data-a="prsave">Guardar precios</button></div></div></div>';openModal(h)},
   prsave:function(){var n=0;prodList().forEach(function(p){var i=$('#pr_'+p.id);if(!i)return;var v=pnum(i.value),old=+p.precio>0?+p.precio:0;if(v!==old){if(v>0)p.precio=v;else delete p.precio;putProd(p);n++}});closeModal();render();toast('✔ Precios guardados'+(n?' ('+n+')':''))},
   liqsh:function(t,d){var o=getOp(d.id);if(!o)return;shareTxt(liqText(o),(backOf(o)?'Liquidación ':'Carga ')+(o.ref||''))},
+  half:function(t,d){var it=UI.cart[d.p]||{c:0,u:0};it.u=r2((+it.u||0)+0.5);UI.cart[d.p]=it;updCard(d.p)},
   pedit:function(t,d){prodEditor(d.p||null)},
   psave:function(t,d){var n=$('#pn').value.trim();if(!n){toast('Pon un nombre',true);return}
     var p=d.p?S.prods[d.p]:{id:uid(),stock:0,activo:true};
