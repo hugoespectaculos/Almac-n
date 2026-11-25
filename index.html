@@ -167,7 +167,7 @@ td.r,th.r{text-align:right}
 (function(){
 'use strict';
 var LS='stockNave_v1', LSU='stockNave_ui', OB='stockNave_outbox';
-var APPV=13,APPN='1.13',APPD='25/11/2026';
+var APPV=14,APPN='1.14',APPD='25/11/2026';
 function checkUpd(){if(!window.fetch||!/^https?:/.test(location.protocol)||/claude/.test(location.hostname))return;fetch(location.pathname+'?x='+Date.now(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(t){var m=t.match(/var APPV=(\d+)/);if(m&&+m[1]>APPV){var k='upd'+m[1];try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1')}catch(e){}location.replace(location.pathname+'?v='+m[1])}}).catch(function(){})}
 var MODES={
   carga:{t:'Sale bebida',c:'#e8590c',ic:'🚚',sign:-1,ref:'Cliente / evento',refPh:'Ej: Fiestas de Morla',ok:'CONFIRMAR Y EMPEZAR A CARGAR'},
@@ -597,23 +597,26 @@ function consumo(o){
 }
 function matNames(){var seen={},r=[];plantList().forEach(function(pl){pl.items.forEach(function(m){var k=norm(m.nombre);if(!seen[k]){seen[k]=1;r.push(m.nombre)}})});S.ops.slice(0,60).forEach(function(o){(o.material||[]).forEach(function(m){var k=norm(m.nombre);if(!seen[k]){seen[k]=1;r.push(m.nombre)}})});['Mostrador','Botellero'].forEach(function(n){if(!seen[norm(n)]){seen[norm(n)]=1;r.push(n)}});return r}
 /* ---------- entrega al cliente: datos, firma y albarán ---------- */
-var FDIRTY=false;
+var FDIRTY=false,FPAGO='despues';
+function pagoTxt(p){return p==='adelantado'?'Pago por adelantado':'Pago después del evento (lo consumido)'}
 function entregaHtml(o){
   var e=o.entrega;
   if(!e)return '<button class="btn2 full" style="margin-top:10px;font-weight:700" data-a="firma" data-id="'+o.id+'">✍️ Entrega al cliente: datos y firma</button>';
-  return '<div class="panel" style="margin-top:10px;border:2px solid #2b8a3e"><b style="color:#2b8a3e">✅ Entregado y firmado</b><div class="meta">'+esc(e.nombre)+(e.dni?' · '+esc(e.dni):'')+(e.dir?' · '+esc(e.dir):'')+' · '+fdate(e.ts)+'</div>'+(e.firma?'<img src="'+e.firma+'" alt="Firma" style="display:block;max-width:320px;width:100%;background:#fff;border:1px solid #dee2e6;border-radius:8px;margin-top:8px">':'')+'<div class="hr" style="margin-top:10px;gap:8px"><button class="big" style="--c:#2b8a3e;flex:1" data-a="albsh" data-id="'+o.id+'">📤 Enviar albarán firmado</button><button class="ghost" data-a="firma" data-id="'+o.id+'">✍️ Volver a firmar</button></div></div>';
+  return '<div class="panel" style="margin-top:10px;border:2px solid #2b8a3e"><b style="color:#2b8a3e">✅ Entregado y firmado</b><div class="meta">'+esc(e.nombre)+(e.dni?' · '+esc(e.dni):'')+(e.dir?' · '+esc(e.dir):'')+' · '+fdate(e.ts)+'<br><b>'+pagoTxt(e.pago)+'</b></div>'+(e.firma?'<img src="'+e.firma+'" alt="Firma" style="display:block;max-width:320px;width:100%;background:#fff;border:1px solid #dee2e6;border-radius:8px;margin-top:8px">':'')+'<div class="hr" style="margin-top:10px;gap:8px"><button class="big" style="--c:#2b8a3e;flex:1" data-a="albsh" data-id="'+o.id+'">📤 Enviar albarán firmado</button><button class="ghost" data-a="firma" data-id="'+o.id+'">✍️ Volver a firmar</button></div></div>';
 }
 function firmaModal(o){
-  var e=o.entrega||{};FDIRTY=false;
+  var e=o.entrega||{};FDIRTY=false;FPAGO=e.pago||'despues';
   var h='<div class="ov" data-a="noop"><div class="sheet" data-a="noop"><h2>✍️ Entrega al cliente</h2><p class="meta">'+esc(o.ref||'')+' · '+fdate(o.ts)+'</p>';
   h+='<label class="lb">Nombre o razón social *</label><input id="fnom" class="in" value="'+esc(e.nombre||o.ref||'')+'" autocomplete="off">';
   h+='<div class="hr"><div style="flex:1"><label class="lb">DNI / CIF</label><input id="fdni" class="in" value="'+esc(e.dni||'')+'" autocomplete="off" autocapitalize="characters"></div><div style="flex:2"><label class="lb">Dirección</label><input id="fdir" class="in" value="'+esc(e.dir||'')+'" autocomplete="off"></div></div>';
+  h+='<label class="lb">Forma de pago</label><div id="fpbox">'+fpHtml()+'</div>';
   h+=valorHtml(o).replace(/<p class="meta">Para poner otro precio[\s\S]*?<\/p>/,'');
   h+='<label class="lb">Firma del cliente (con el dedo) *</label><canvas id="fcan" width="900" height="300" style="width:100%;height:200px;background:#fff;border:2px dashed #adb5bd;border-radius:12px;touch-action:none"></canvas>';
   h+='<div class="hr" style="margin-top:6px"><button class="mini" data-a="fclr">Borrar firma</button><div class="meta" style="flex:1;text-align:right">Al firmar, el cliente acepta lo que se lleva y sus precios.</div></div>';
   h+='<div class="pbtn"><button class="ghost lg" data-a="close">Cancelar</button><button class="big" style="--c:#2b8a3e" data-a="fsave" data-id="'+o.id+'">Guardar firma</button></div></div></div>';
   openModal(h);setTimeout(initFirma,0);
 }
+function fpHtml(){return [['adelantado','💶 Por adelantado'],['despues','🕒 Después del evento']].map(function(x){return '<button class="chip'+(FPAGO===x[0]?' on':'')+'" data-a="fpago" data-v="'+x[0]+'">'+x[1]+'</button>'}).join('')}
 function initFirma(){
   var c=$('#fcan');if(!c)return;var g=c.getContext('2d'),dn=false,lx=0,ly=0;
   g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.lineWidth=4;g.lineCap='round';g.lineJoin='round';g.strokeStyle='#111';
@@ -629,7 +632,7 @@ function albaranCanvas(o,cb){
   o.lineas.forEach(function(l){var pr=lpr(l),im=r2(l.cant*pr);t+=im;rows.push([l.nombre,fmtL(l.cant,l).replace(/<[^>]*>/g,''),pr?eur(pr):'',pr?eur(im):''])});
   matRows(o).forEach(function(x){t+=x.im;rows.push([x.m.nombre,'x '+nf(x.m.cant),eur(x.pr),eur(x.im)])});
   (o.material||[]).forEach(function(m){if(m.cant>0&&!matRows(o).some(function(x){return x.m===m}))rows.push([m.nombre+' (material)','x '+nf(m.cant),'',''])});
-  var W=1000,LH=42,H=470+rows.length*LH+390,c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');
+  var W=1000,LH=42,H=470+rows.length*LH+430,c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');
   g.fillStyle='#fff';g.fillRect(0,0,W,H);g.fillStyle='#111';g.textBaseline='alphabetic';
   function tx(s,x,y,f,al,col){g.font=f||'24px Helvetica, Arial, sans-serif';g.textAlign=al||'left';g.fillStyle=col||'#111';g.fillText(s,x,y)}
   function fit(s,max,f){g.font=f;while(s.length>3&&g.measureText(s).width>max)s=s.slice(0,-2);return s}
@@ -648,6 +651,7 @@ function albaranCanvas(o,cb){
     rows.forEach(function(r){y+=LH;tx(fit(r[0],330,'24px Helvetica, Arial, sans-serif'),40,y);tx(r[1],560,y,'24px Helvetica, Arial, sans-serif','right');tx(r[2],760,y,'24px Helvetica, Arial, sans-serif','right');tx(r[3],W-40,y,'bold 24px Helvetica, Arial, sans-serif','right');g.fillStyle='#f1f3f5';g.fillRect(40,y+12,W-80,1)});
     y+=60;tx('TOTAL',560,y,'bold 30px Helvetica, Arial, sans-serif','left');tx(eur(t),W-40,y,'bold 34px Helvetica, Arial, sans-serif','right');
     y+=34;tx('Precios con IVA incluido.',W-40,y,'20px Helvetica, Arial, sans-serif','right','#868e96');
+    y+=40;tx('Forma de pago: '+pagoTxt(e.pago),40,y,'bold 24px Helvetica, Arial, sans-serif','left','#e8590c');
     y+=50;tx('Firma del cliente:',40,y,'bold 22px Helvetica, Arial, sans-serif');
     var fy=y+12;g.strokeStyle='#ced4da';g.lineWidth=2;g.strokeRect(40,fy,560,190);
     tx('Firmado el '+(e.ts?fdate(e.ts):''),620,fy+40,'20px Helvetica, Arial, sans-serif','left','#495057');
@@ -975,8 +979,9 @@ var A={
   firma:function(t,d){var o=getOp(d.id);if(o)firmaModal(o)},
   fclr:function(){var c=$('#fcan');if(!c)return;var g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);FDIRTY=false},
   fsave:function(t,d){var o=getOp(d.id);if(!o)return;var n=$('#fnom').value.trim();if(!n){toast('Pon el nombre del cliente',true);return}if(!FDIRTY){toast('Falta la firma del cliente',true);return}
-    o.entrega={nombre:n,dni:$('#fdni').value.trim().toUpperCase(),dir:$('#fdir').value.trim(),firma:$('#fcan').toDataURL('image/png'),ts:Date.now(),por:UI.who||''};putOp(o);closeModal();render();
+    o.entrega={nombre:n,pago:FPAGO,dni:$('#fdni').value.trim().toUpperCase(),dir:$('#fdir').value.trim(),firma:$('#fcan').toDataURL('image/png'),ts:Date.now(),por:UI.who||''};putOp(o);closeModal();render();
     ask('✔ Firmado. ¿Enviar ahora la copia al cliente?','📤 Enviar',function(){shareAlbaran(o)})},
+  fpago:function(t,d){FPAGO=d.v;var b=$('#fpbox');if(b)b.innerHTML=fpHtml()},
   albsh:function(t,d){var o=getOp(d.id);if(o)shareAlbaran(o)},
   edsave:function(){edSave()},
   precios:function(){var ps=prodList(),cat=null,h='<div class="ov" data-a="noop"><div class="sheet" data-a="noop"><h2>💶 Precios de venta</h2><p class="meta">Precio al que se lo cobras al cliente, por unidad (lata, botella, bolsa…). Déjalo vacío si no se cobra.</p>';
