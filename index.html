@@ -167,7 +167,7 @@ td.r,th.r{text-align:right}
 (function(){
 'use strict';
 var LS='stockNave_v1', LSU='stockNave_ui', OB='stockNave_outbox';
-var APPV=10,APPD='25/11/2026';
+var APPV=11,APPD='25/11/2026';
 function checkUpd(){if(!window.fetch||!/^https?:/.test(location.protocol)||/claude/.test(location.hostname))return;fetch(location.pathname+'?x='+Date.now(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(t){var m=t.match(/var APPV=(\d+)/);if(m&&+m[1]>APPV){var k='upd'+m[1];try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1')}catch(e){}location.replace(location.pathname+'?v='+m[1])}}).catch(function(){})}
 var MODES={
   carga:{t:'Sale bebida',c:'#e8590c',ic:'🚚',sign:-1,ref:'Cliente / evento',refPh:'Ej: Fiestas de Morla',ok:'CONFIRMAR Y EMPEZAR A CARGAR'},
@@ -315,7 +315,7 @@ function edSave(){
 }
 
 /* ---------- arranque ---------- */
-function goLocal(){mode='local';var u=lsGet(LSU)||{};if(!prodList().length&&!S.ops.length&&!u.seeded){u.seeded=1;lsSet(LSU,u);seed()}u=lsGet(LSU)||{};if(!u.sv26&&prodList().length){u.sv26=1;lsSet(LSU,u);aplicarSuelo(false)}importar1();migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();migrarPrecios1();migrarPrecios2();migrarPrecios3();render()}
+function goLocal(){mode='local';var u=lsGet(LSU)||{};if(!prodList().length&&!S.ops.length&&!u.seeded){u.seeded=1;lsSet(LSU,u);seed()}u=lsGet(LSU)||{};if(!u.sv26&&prodList().length){u.sv26=1;lsSet(LSU,u);aplicarSuelo(false)}importar1();migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();migrarPrecios1();migrarPrecios2();migrarPrecios3();migrarPrecios4();render()}
 function init(){
   var c=lsGet(LS);if(c){S.prods=c.prods||{};S.ops=c.ops||[];if(c.cfg)S.cfg=Object.assign(S.cfg,c.cfg)}
   overlay();
@@ -329,7 +329,7 @@ function init(){
 function subscribe(){
   var got={p:0,o:0,c:0};stale=false;
   var st=setTimeout(function(){stale=true;setSync()},10000);
-  function ok(k,m){if(m&&!m.fromCache){got[k]=1;if(got.p&&got.o&&got.c){clearTimeout(st);stale=false;if(!got.m){got.m=1;if(!prodList().length&&!S.ops.length)seed();importar1();migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();migrarPrecios1();migrarPrecios2();migrarPrecios3()}}}}
+  function ok(k,m){if(m&&!m.fromCache){got[k]=1;if(got.p&&got.o&&got.c){clearTimeout(st);stale=false;if(!got.m){got.m=1;if(!prodList().length&&!S.ops.length)seed();importar1();migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();migrarPrecios1();migrarPrecios2();migrarPrecios3();migrarPrecios4()}}}}
   function err(e){clearTimeout(st);if(e&&e.code==='revoked'){mode='local'}else stale=true;render()}
   db.collection('productos').onSnapshot(function(s){var m={};s.docs.forEach(function(d){m[d.id]=plain(d.data())});S.prods=m;overlay();saveLocal();ok('p',s.metadata);render()},err);
   db.collection('ops').orderBy('ts','desc').limit(500).onSnapshot(function(s){S.ops=s.docs.map(function(d){return plain(d.data())});overlay();saveLocal();ok('o',s.metadata);render()},err);
@@ -680,6 +680,12 @@ function migrarPrecios3(){
   S.cfg.mpre=Object.assign({arcon:30,mostrador:20,botellero:20,'vasos cana':0,'vasos copa':0,'vasos chupito':0,'vasos cachi':0,barril:0},S.cfg.mpre||{});
   S.cfg.mig.push('precios3');putCfg();
 }
+function migrarPrecios4(){
+  if(!prodList().length)return;S.cfg.mig=S.cfg.mig||[];if(S.cfg.mig.indexOf('precios4')>=0)return;
+  var NP={'vasos cana':1.94,'vasos cachi':3.1,'vasos chupito':1.36,'vasos copa':62.44};
+  Object.keys(S.prods).forEach(function(k){var p=S.prods[k],v=p&&NP[norm(p.nombre)];if(v&&+p.precio!==v){p.precio=v;putProd(p)}});
+  S.cfg.mig.push('precios4');putCfg();
+}
 function importar1(){
   S.cfg.mig=S.cfg.mig||[];if(S.cfg.mig.indexOf('imp1')>=0)return;var u=lsGet(LSU)||{};if(u.imp1)return;
   var tiene=S.ops.some(function(o){return o.id==='mwuspyg7382f9'});
@@ -778,7 +784,7 @@ function seed(){
     'Barra y consumibles|ud|1':['Co2','Vasos caña','Vasos cachi','Vasos chupito','Vasos copa','Hielo']
   };
   Object.keys(G).forEach(function(k){var a=k.split('|');G[k].forEach(function(n){putProd({id:uid()+Math.random().toString(36).slice(2,4),nombre:n,cat:a[0],formato:'',porCaja:+a[2],ud:a[1],min:0,stock:0,activo:true})})});
-  plantList();putCfg();var n=excelStock();aplicarSuelo(false);migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();migrarPrecios1();migrarPrecios2();migrarPrecios3();render();toast('✔ Productos y stock del Excel cargados ('+n+' con stock)');
+  plantList();putCfg();var n=excelStock();aplicarSuelo(false);migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();migrarPrecios1();migrarPrecios2();migrarPrecios3();migrarPrecios4();render();toast('✔ Productos y stock del Excel cargados ('+n+' con stock)');
 }
 function today(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
 function snapshot(ops){var o={app:'stockNave',v:1,fecha:new Date().toISOString(),ts:Date.now(),prods:S.prods,cfg:S.cfg};if(ops)o.ops=ops;return plain(o)}
