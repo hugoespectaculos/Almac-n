@@ -313,7 +313,7 @@ function edSave(){
 }
 
 /* ---------- arranque ---------- */
-function goLocal(){mode='local';var u=lsGet(LSU)||{};if(!prodList().length&&!S.ops.length&&!u.seeded){u.seeded=1;lsSet(LSU,u);seed()}u=lsGet(LSU)||{};if(!u.sv26&&prodList().length){u.sv26=1;lsSet(LSU,u);aplicarSuelo(false)}migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();render()}
+function goLocal(){mode='local';var u=lsGet(LSU)||{};if(!prodList().length&&!S.ops.length&&!u.seeded){u.seeded=1;lsSet(LSU,u);seed()}u=lsGet(LSU)||{};if(!u.sv26&&prodList().length){u.sv26=1;lsSet(LSU,u);aplicarSuelo(false)}migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();migrarPrecios1();render()}
 function init(){
   var c=lsGet(LS);if(c){S.prods=c.prods||{};S.ops=c.ops||[];if(c.cfg)S.cfg=Object.assign(S.cfg,c.cfg)}
   overlay();
@@ -327,7 +327,7 @@ function init(){
 function subscribe(){
   var got={p:0,o:0,c:0};stale=false;
   var st=setTimeout(function(){stale=true;setSync()},10000);
-  function ok(k,m){if(m&&!m.fromCache){got[k]=1;if(got.p&&got.o&&got.c){clearTimeout(st);stale=false;if(!got.m){got.m=1;if(!prodList().length&&!S.ops.length)seed();migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8()}}}}
+  function ok(k,m){if(m&&!m.fromCache){got[k]=1;if(got.p&&got.o&&got.c){clearTimeout(st);stale=false;if(!got.m){got.m=1;if(!prodList().length&&!S.ops.length)seed();migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();migrarPrecios1()}}}}
   function err(e){clearTimeout(st);if(e&&e.code==='revoked'){mode='local'}else stale=true;render()}
   db.collection('productos').onSnapshot(function(s){var m={};s.docs.forEach(function(d){m[d.id]=plain(d.data())});S.prods=m;overlay();saveLocal();ok('p',s.metadata);render()},err);
   db.collection('ops').orderBy('ts','desc').limit(500).onSnapshot(function(s){S.ops=s.docs.map(function(d){return plain(d.data())});overlay();saveLocal();ok('o',s.metadata);render()},err);
@@ -709,6 +709,13 @@ function migrarCajas8(){
     else putProd({id:uid()+Math.random().toString(36).slice(2,4),nombre:n+' cristal',cat:'Refrescos',formato:'cristal · Moreiras',porCaja:28,ud:'botellín',min:0,stock:0,activo:true})});
   S.cfg.mig.push('cajas8');putCfg();
 }
+var PRECIOS1={"Seagrams":16.17,"Beefeater":14.57,"Larios Rosé":14.71,"Barceló":16.17,"Brugal":12.18,"Arehucas":11.03,"Cacique":11.97,"Bacardi blanco":13.3,"Eristoff":9.3,"Ballantines":13.91,"JB":10.18,"Martini blanco":11.31,"Martini rojo":11.31,"Tequi fresa kilda":6.51,"Tequi mango kilda":6.51,"Tequi fresa kick":10.55,"Tequi mango kick":9.97,"Tequi sandía kick":9.97,"Tequi choco kick":9.97,"Fireball":14.16,"Tinto Fuenteviña":1.49,"Rosado Fuenteviña":1.49,"Verdejo Fuenteviña":1.49,"Tinto litro":1.0,"Mosto":1.44,"Mosto monodosis":0.83,"Coca-Cola cristal":1.01,"Coca-Cola Zero cristal":1.01,"Kas naranja cristal":0.77,"Seven Up cristal":0.65,"Schweppes naranja cristal":0.62,"Schweppes limón cristal":0.62,"Tónica cristal":0.99,"Red Bull":1.43,"Aquarade":0.94,"Trina":1.38,"Nestea":0.64,"Coca-Cola 2L":1.57,"Limón 2L":0.61,"Casera 1,5L":0.4,"Zumo de naranja":0.83,"Zumo de melocotón":0.83,"Zumo de piña":0.83,"Agua":0.37,"Estrella botellín":0.73,"Estrella 0,0":0.6,"Estrella 0,0 tostada":0.68,"Barril":81.09,"Patatas Ugarsa":0.95,"Patatas Marina":1.16,"Jumpers":0.98,"Co2":85.93,"Vasos caña":1.87,"Vasos cachi":2.98,"Vasos chupito":1.3,"Vasos copa":59.93,"Hielo":0.24};
+function migrarPrecios1(){
+  if(!prodList().length)return;S.cfg.mig=S.cfg.mig||[];if(S.cfg.mig.indexOf('precios1')>=0)return;
+  var m={};Object.keys(PRECIOS1).forEach(function(k){m[norm(k)]=PRECIOS1[k]});
+  Object.keys(S.prods).forEach(function(k){var p=S.prods[k],v=p&&m[norm(p.nombre)];if(v>0&&+p.precio!==v){p.precio=v;putProd(p)}});
+  S.cfg.mig.push('precios1');putCfg();
+}
 function excelStock(){
   var m={};Object.keys(XL).forEach(function(k){m[norm(k)]=XL[k]});
   var lines=[];prodList().forEach(function(p){var v=m[norm(p.nombre)];if(v==null)return;if(r2(v)!==r2(p.stock||0))lines.push({pid:p.id,nombre:p.nombre,n:pc(p),ud:udn(p),contado:v})});
@@ -736,7 +743,7 @@ function seed(){
     'Barra y consumibles|ud|1':['Co2','Vasos caña','Vasos cachi','Vasos chupito','Vasos copa','Hielo']
   };
   Object.keys(G).forEach(function(k){var a=k.split('|');G[k].forEach(function(n){putProd({id:uid()+Math.random().toString(36).slice(2,4),nombre:n,cat:a[0],formato:'',porCaja:+a[2],ud:a[1],min:0,stock:0,activo:true})})});
-  plantList();putCfg();var n=excelStock();aplicarSuelo(false);migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();render();toast('✔ Productos y stock del Excel cargados ('+n+' con stock)');
+  plantList();putCfg();var n=excelStock();aplicarSuelo(false);migrarCajas();migrarCajas2();migrarCajas3();migrarCajas4();migrarCajas5();migrarCajas6();migrarCajas7();migrarCajas8();migrarPrecios1();render();toast('✔ Productos y stock del Excel cargados ('+n+' con stock)');
 }
 function today(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
 function snapshot(ops){var o={app:'stockNave',v:1,fecha:new Date().toISOString(),ts:Date.now(),prods:S.prods,cfg:S.cfg};if(ops)o.ops=ops;return plain(o)}
