@@ -167,7 +167,7 @@ td.r,th.r{text-align:right}
 (function(){
 'use strict';
 var LS='stockNave_v1', LSU='stockNave_ui', OB='stockNave_outbox';
-var APPV=12,APPD='25/11/2026';
+var APPV=13,APPD='25/11/2026';
 function checkUpd(){if(!window.fetch||!/^https?:/.test(location.protocol)||/claude/.test(location.hostname))return;fetch(location.pathname+'?x='+Date.now(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(t){var m=t.match(/var APPV=(\d+)/);if(m&&+m[1]>APPV){var k='upd'+m[1];try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1')}catch(e){}location.replace(location.pathname+'?v='+m[1])}}).catch(function(){})}
 var MODES={
   carga:{t:'Sale bebida',c:'#e8590c',ic:'🚚',sign:-1,ref:'Cliente / evento',refPh:'Ej: Fiestas de Morla',ok:'CONFIRMAR Y EMPEZAR A CARGAR'},
@@ -505,7 +505,7 @@ function vCarga(){
   if((o.material||[]).length){h+='<div class="sec"><h3>Material ('+o.material.filter(function(l){return l.chk}).length+'/'+o.material.length+')</h3>';o.material.forEach(function(l,i){h+=chkRow('M',i,l.nombre,'x '+l.cant,l,closed)});h+='</div>'}
   if(!closed)h+='<button class="btn2 full" data-a="cadd">＋ Añadir material a esta carga</button>';
   h+='<button class="btn2 full" style="margin-top:10px" data-a="oedit" data-id="'+o.id+'">✏️ Corregir cantidades / material</button>';
-  h+='<div class="sec">'+(backOf(o)?consumo(o):valorHtml(o)+(hasPr(o)?'<button class="btn2 full" style="margin-top:8px" data-a="liqsh" data-id="'+o.id+'">📤 Enviar lo que se lleva (WhatsApp, email…)</button>':''))+'</div>';
+  h+='<div class="sec">'+(backOf(o)?consumo(o):valorHtml(o)+(hasPr(o)?'<button class="btn2 full" style="margin-top:8px" data-a="liqsh" data-id="'+o.id+'">📤 Enviar lo que se lleva (WhatsApp, email…)</button>':''))+entregaHtml(o)+'</div>';
   h+='</div>';
   if(!closed)h+='<div class="bar" style="--c:'+M.c+'"><div class="bsum">'+(g.d===g.t?'<span class="ok">✔ Todo cargado</span>':'Faltan <b>'+(g.t-g.d)+'</b>')+'</div><button class="ghost" data-a="cdel">Anular</button><button class="big" data-a="cclose">Terminar carga ✔</button></div>';
   else h+='<div class="bar" style="--c:#1971c2"><div class="bsum">¿Ya volvió del evento?</div><button class="big" data-a="devde" data-id="'+o.id+'">↩️ Apuntar lo que vuelve</button></div>';
@@ -596,6 +596,74 @@ function consumo(o){
   return h;
 }
 function matNames(){var seen={},r=[];plantList().forEach(function(pl){pl.items.forEach(function(m){var k=norm(m.nombre);if(!seen[k]){seen[k]=1;r.push(m.nombre)}})});S.ops.slice(0,60).forEach(function(o){(o.material||[]).forEach(function(m){var k=norm(m.nombre);if(!seen[k]){seen[k]=1;r.push(m.nombre)}})});['Mostrador','Botellero'].forEach(function(n){if(!seen[norm(n)]){seen[norm(n)]=1;r.push(n)}});return r}
+/* ---------- entrega al cliente: datos, firma y albarán ---------- */
+var FDIRTY=false;
+function entregaHtml(o){
+  var e=o.entrega;
+  if(!e)return '<button class="btn2 full" style="margin-top:10px;font-weight:700" data-a="firma" data-id="'+o.id+'">✍️ Entrega al cliente: datos y firma</button>';
+  return '<div class="panel" style="margin-top:10px;border:2px solid #2b8a3e"><b style="color:#2b8a3e">✅ Entregado y firmado</b><div class="meta">'+esc(e.nombre)+(e.dni?' · '+esc(e.dni):'')+(e.dir?' · '+esc(e.dir):'')+' · '+fdate(e.ts)+'</div>'+(e.firma?'<img src="'+e.firma+'" alt="Firma" style="display:block;max-width:320px;width:100%;background:#fff;border:1px solid #dee2e6;border-radius:8px;margin-top:8px">':'')+'<div class="hr" style="margin-top:10px;gap:8px"><button class="big" style="--c:#2b8a3e;flex:1" data-a="albsh" data-id="'+o.id+'">📤 Enviar albarán firmado</button><button class="ghost" data-a="firma" data-id="'+o.id+'">✍️ Volver a firmar</button></div></div>';
+}
+function firmaModal(o){
+  var e=o.entrega||{};FDIRTY=false;
+  var h='<div class="ov" data-a="noop"><div class="sheet" data-a="noop"><h2>✍️ Entrega al cliente</h2><p class="meta">'+esc(o.ref||'')+' · '+fdate(o.ts)+'</p>';
+  h+='<label class="lb">Nombre o razón social *</label><input id="fnom" class="in" value="'+esc(e.nombre||o.ref||'')+'" autocomplete="off">';
+  h+='<div class="hr"><div style="flex:1"><label class="lb">DNI / CIF</label><input id="fdni" class="in" value="'+esc(e.dni||'')+'" autocomplete="off" autocapitalize="characters"></div><div style="flex:2"><label class="lb">Dirección</label><input id="fdir" class="in" value="'+esc(e.dir||'')+'" autocomplete="off"></div></div>';
+  h+=valorHtml(o).replace(/<p class="meta">Para poner otro precio[\s\S]*?<\/p>/,'');
+  h+='<label class="lb">Firma del cliente (con el dedo) *</label><canvas id="fcan" width="900" height="300" style="width:100%;height:200px;background:#fff;border:2px dashed #adb5bd;border-radius:12px;touch-action:none"></canvas>';
+  h+='<div class="hr" style="margin-top:6px"><button class="mini" data-a="fclr">Borrar firma</button><div class="meta" style="flex:1;text-align:right">Al firmar, el cliente acepta lo que se lleva y sus precios.</div></div>';
+  h+='<div class="pbtn"><button class="ghost lg" data-a="close">Cancelar</button><button class="big" style="--c:#2b8a3e" data-a="fsave" data-id="'+o.id+'">Guardar firma</button></div></div></div>';
+  openModal(h);setTimeout(initFirma,0);
+}
+function initFirma(){
+  var c=$('#fcan');if(!c)return;var g=c.getContext('2d'),dn=false,lx=0,ly=0;
+  g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.lineWidth=4;g.lineCap='round';g.lineJoin='round';g.strokeStyle='#111';
+  function pt(ev){var r=c.getBoundingClientRect(),t=ev.touches&&ev.touches[0]?ev.touches[0]:ev;return [(t.clientX-r.left)*c.width/r.width,(t.clientY-r.top)*c.height/r.height]}
+  function st(ev){ev.preventDefault();dn=true;var p=pt(ev);lx=p[0];ly=p[1];g.beginPath();g.arc(lx,ly,1.5,0,6.3);g.fill();FDIRTY=true}
+  function mv(ev){if(!dn)return;ev.preventDefault();var p=pt(ev);g.beginPath();g.moveTo(lx,ly);g.lineTo(p[0],p[1]);g.stroke();lx=p[0];ly=p[1];FDIRTY=true}
+  function en(){dn=false}
+  c.addEventListener('touchstart',st,{passive:false});c.addEventListener('touchmove',mv,{passive:false});c.addEventListener('touchend',en);
+  c.addEventListener('mousedown',st);c.addEventListener('mousemove',mv);window.addEventListener('mouseup',en);
+}
+function albaranCanvas(o,cb){
+  var e=o.entrega||{},rows=[],t=0;
+  o.lineas.forEach(function(l){var pr=lpr(l),im=r2(l.cant*pr);t+=im;rows.push([l.nombre,fmtL(l.cant,l).replace(/<[^>]*>/g,''),pr?eur(pr):'',pr?eur(im):''])});
+  matRows(o).forEach(function(x){t+=x.im;rows.push([x.m.nombre,'x '+nf(x.m.cant),eur(x.pr),eur(x.im)])});
+  (o.material||[]).forEach(function(m){if(m.cant>0&&!matRows(o).some(function(x){return x.m===m}))rows.push([m.nombre+' (material)','x '+nf(m.cant),'',''])});
+  var W=1000,LH=42,H=470+rows.length*LH+390,c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');
+  g.fillStyle='#fff';g.fillRect(0,0,W,H);g.fillStyle='#111';g.textBaseline='alphabetic';
+  function tx(s,x,y,f,al,col){g.font=f||'24px Helvetica, Arial, sans-serif';g.textAlign=al||'left';g.fillStyle=col||'#111';g.fillText(s,x,y)}
+  function fit(s,max,f){g.font=f;while(s.length>3&&g.measureText(s).width>max)s=s.slice(0,-2);return s}
+  function draw(logo){
+    if(logo)g.drawImage(logo,40,30,110,110);
+    tx('TASKAS · HUGO ESPECTÁCULOS',170,70,'bold 30px Helvetica, Arial, sans-serif');
+    tx('ALBARÁN DE ENTREGA',170,110,'bold 26px Helvetica, Arial, sans-serif','left','#e8590c');
+    tx('Fecha: '+fdate(o.ts),W-40,70,'22px Helvetica, Arial, sans-serif','right');
+    tx('Ref: '+(o.ref||''),W-40,104,'22px Helvetica, Arial, sans-serif','right');
+    g.fillStyle='#f1f3f5';g.fillRect(40,165,W-80,130);
+    tx('Cliente: '+fit(e.nombre||'',W-200,'bold 26px Helvetica, Arial, sans-serif'),60,205,'bold 26px Helvetica, Arial, sans-serif');
+    tx('DNI / CIF: '+(e.dni||'—'),60,242,'24px Helvetica, Arial, sans-serif');
+    tx('Dirección: '+fit(e.dir||'—',W-260,'24px Helvetica, Arial, sans-serif'),60,277,'24px Helvetica, Arial, sans-serif');
+    var y=345;tx('Producto',40,y,'bold 22px Helvetica, Arial, sans-serif','left','#495057');tx('Cantidad',560,y,'bold 22px Helvetica, Arial, sans-serif','right','#495057');tx('Precio/ud',760,y,'bold 22px Helvetica, Arial, sans-serif','right','#495057');tx('Importe',W-40,y,'bold 22px Helvetica, Arial, sans-serif','right','#495057');
+    g.fillStyle='#ced4da';g.fillRect(40,y+12,W-80,2);y+=12;
+    rows.forEach(function(r){y+=LH;tx(fit(r[0],330,'24px Helvetica, Arial, sans-serif'),40,y);tx(r[1],560,y,'24px Helvetica, Arial, sans-serif','right');tx(r[2],760,y,'24px Helvetica, Arial, sans-serif','right');tx(r[3],W-40,y,'bold 24px Helvetica, Arial, sans-serif','right');g.fillStyle='#f1f3f5';g.fillRect(40,y+12,W-80,1)});
+    y+=60;tx('TOTAL',560,y,'bold 30px Helvetica, Arial, sans-serif','left');tx(eur(t),W-40,y,'bold 34px Helvetica, Arial, sans-serif','right');
+    y+=34;tx('Precios con IVA incluido.',W-40,y,'20px Helvetica, Arial, sans-serif','right','#868e96');
+    y+=50;tx('Firma del cliente:',40,y,'bold 22px Helvetica, Arial, sans-serif');
+    var fy=y+12;g.strokeStyle='#ced4da';g.lineWidth=2;g.strokeRect(40,fy,560,190);
+    tx('Firmado el '+(e.ts?fdate(e.ts):''),620,fy+40,'20px Helvetica, Arial, sans-serif','left','#495057');
+    tx('El cliente recibe la mercancía',620,fy+75,'20px Helvetica, Arial, sans-serif','left','#495057');tx('y acepta los precios indicados.',620,fy+102,'20px Helvetica, Arial, sans-serif','left','#495057');
+    if(e.firma){var im=new Image();im.onload=function(){g.drawImage(im,45,fy+5,550,180);cb(c)};im.onerror=function(){cb(c)};im.src=e.firma}else cb(c);
+  }
+  var lg=new Image();lg.onload=function(){draw(lg)};lg.onerror=function(){draw(null)};lg.src=LOGO;
+}
+function shareAlbaran(o){
+  albaranCanvas(o,function(c){
+    var u=c.toDataURL('image/jpeg',0.9),name='Albaran '+String(o.ref||'').replace(/[^\wáéíóúñÁÉÍÓÚÑ -]/g,'').trim()+'.jpg';
+    var show=function(){openModal('<div class="ov" data-a="close"><div class="sheet" data-a="noop"><h2>📄 Albarán firmado</h2><p class="meta">Mantén pulsada la imagen → <b>Compartir</b> (WhatsApp, Mail…) o <b>Guardar imagen</b>.</p><img src="'+u+'" style="width:100%;border:1px solid #dee2e6;border-radius:8px"><button class="btn2 full" data-a="close">Cerrar</button></div></div>')};
+    try{c.toBlob(function(b){var f=null;try{f=new File([b],name,{type:'image/jpeg'})}catch(x){}
+      if(f&&navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:'Albarán '+(o.ref||'')}).catch(function(err){if(!err||err.name!=='AbortError')show()})}else show()},'image/jpeg',0.9)}catch(x){show()}
+  });
+}
 function opDetail(o){
   var h='<div class="panel" style="margin-top:-4px">';
   if(o.editado)h+='<p class="meta">✏️ Editado '+fdate(o.editado)+(o.editadoPor?' por '+esc(o.editadoPor):'')+'</p>';
@@ -603,7 +671,7 @@ function opDetail(o){
   if(o.lineas.length){h+='<table>';if(o.tipo==='recuento'){h+='<tr><th>Producto</th><th class="r">Antes</th><th class="r">Contado</th><th class="r">Dif.</th></tr>';o.lineas.forEach(function(l){h+='<tr><td>'+esc(l.nombre)+'</td><td class="r">'+fmtL(l.antes,l)+'</td><td class="r">'+fmtL(l.contado,l)+'</td><td class="r '+((l.dif||0)<0?'neg':(l.dif||0)>0?'pos':'ok')+'">'+(l.dif?(l.dif>0?'+':'')+fmtL(l.dif,l):'✔')+'</td></tr>'})}
     else o.lineas.forEach(function(l){h+='<tr><td>'+(o.tipo==='carga'?(l.chk?'✅ ':'⬜ '):'')+esc(l.nombre)+'</td><td class="r"><b>'+fmtL(l.cant,l)+'</b></td></tr>'});h+='</table>'}
   if(o.material&&o.material.length){h+='<label class="lb">Material</label><table>';o.material.forEach(function(m){h+='<tr><td>'+(m.chk?'✅ ':'⬜ ')+esc(m.nombre)+'</td><td class="r">x '+m.cant+'</td></tr>'});h+='</table>'}
-  if(o.tipo==='carga')h+=backOf(o)?consumo(o):valorHtml(o);
+  if(o.tipo==='carga')h+=(backOf(o)?consumo(o):valorHtml(o))+entregaHtml(o);
   h+='<div class="hr" style="margin-top:12px">'+(o.tipo==='carga'?'<button class="ghost" data-a="ocarga" data-id="'+o.id+'">Abrir lista de carga</button><button class="ghost" data-a="devde" data-id="'+o.id+'">↩️ Apuntar lo que vuelve</button>':'')+'<button class="ghost" data-a="oedit" data-id="'+o.id+'">✏️ Editar</button><button class="ghost" style="color:#c92a2a" data-a="anu" data-id="'+o.id+'">Anular movimiento</button></div>';
   return h+'</div>';
 }
@@ -904,6 +972,12 @@ var A={
   edmadd:function(){edSync();var i=$('#emat'),v=i?i.value.trim():'';if(!v)return;UI.ed.material.push({id:uid(),nombre:v,cant:1,chk:false});edKeep()},
   edlpr:function(t,d){edSync();var l=UI.ed.lineas[d.i];openPad({title:'Precio por '+(l.ud||'ud')+' · '+l.nombre+' (solo este pedido)',init:lpr(l)?nf(lpr(l)):'',dec:true,color:'#2b8a3e',cb:function(v){var x=pnum(v);if(x>0)l.precio=x;else delete l.precio;setTimeout(edKeep,0)},back:edKeep})},
   edmpr:function(t,d){edSync();var m=UI.ed.material[d.i];openPad({title:'Precio por unidad · '+m.nombre+' (solo este pedido)',init:+m.precio>0?nf(m.precio):(mpr(m.nombre)?nf(mpr(m.nombre)):''),dec:true,color:'#2b8a3e',cb:function(v){var x=pnum(v);if(x>0)m.precio=x;else delete m.precio;setTimeout(edKeep,0)},back:edKeep})},
+  firma:function(t,d){var o=getOp(d.id);if(o)firmaModal(o)},
+  fclr:function(){var c=$('#fcan');if(!c)return;var g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);FDIRTY=false},
+  fsave:function(t,d){var o=getOp(d.id);if(!o)return;var n=$('#fnom').value.trim();if(!n){toast('Pon el nombre del cliente',true);return}if(!FDIRTY){toast('Falta la firma del cliente',true);return}
+    o.entrega={nombre:n,dni:$('#fdni').value.trim().toUpperCase(),dir:$('#fdir').value.trim(),firma:$('#fcan').toDataURL('image/png'),ts:Date.now(),por:UI.who||''};putOp(o);closeModal();render();
+    ask('✔ Firmado. ¿Enviar ahora la copia al cliente?','📤 Enviar',function(){shareAlbaran(o)})},
+  albsh:function(t,d){var o=getOp(d.id);if(o)shareAlbaran(o)},
   edsave:function(){edSave()},
   precios:function(){var ps=prodList(),cat=null,h='<div class="ov" data-a="noop"><div class="sheet" data-a="noop"><h2>💶 Precios de venta</h2><p class="meta">Precio al que se lo cobras al cliente, por unidad (lata, botella, bolsa…). Déjalo vacío si no se cobra.</p>';
     ps.forEach(function(p){if(p.cat!==cat){cat=p.cat;h+='<div class="sec" style="margin-top:12px"><h3>'+esc(cat)+'</h3></div>'}h+='<div class="mrow"><div class="grow"><b>'+esc(p.nombre)+'</b><div class="meta">€ por '+esc(udn(p))+(pc(p)>1?' · caja de '+pc(p):'')+'</div></div><input id="pr_'+p.id+'" class="in" style="width:120px;text-align:right" inputmode="decimal" value="'+(+p.precio>0?nf(p.precio):'')+'" placeholder="0,00"></div>'});
