@@ -167,7 +167,7 @@ td.r,th.r{text-align:right}
 (function(){
 'use strict';
 var LS='stockNave_v1', LSU='stockNave_ui', OB='stockNave_outbox';
-var APPV=9,APPD='25/11/2026';
+var APPV=10,APPD='25/11/2026';
 function checkUpd(){if(!window.fetch||!/^https?:/.test(location.protocol)||/claude/.test(location.hostname))return;fetch(location.pathname+'?x='+Date.now(),{cache:'no-store'}).then(function(r){return r.text()}).then(function(t){var m=t.match(/var APPV=(\d+)/);if(m&&+m[1]>APPV){var k='upd'+m[1];try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1')}catch(e){}location.replace(location.pathname+'?v='+m[1])}}).catch(function(){})}
 var MODES={
   carga:{t:'Sale bebida',c:'#e8590c',ic:'🚚',sign:-1,ref:'Cliente / evento',refPh:'Ej: Fiestas de Morla',ok:'CONFIRMAR Y EMPEZAR A CARGAR'},
@@ -290,12 +290,12 @@ function edDraw(){
   h+='<label class="lb">'+esc(M.ref||'Referencia')+'</label><input id="eref" class="in" value="'+esc(e.ref)+'" autocomplete="off">';
   h+='<label class="lb">'+(e.tipo==='carga'?'Bebida':'Productos')+' ('+e.lineas.length+')</label>';
   if(!e.lineas.length)h+='<div class="meta">Sin productos</div>';
-  e.lineas.forEach(function(l,i){used[l.pid]=1;var q=edQ(l);h+='<div class="mrow'+(q>0||rec?'':' off')+'"><div class="grow"><b>'+esc(l.nombre)+'</b><div class="meta">'+fmtL(q,l)+(rec?' contado':'')+'</div></div><button class="pm" data-a="edl" data-i="'+i+'" data-s="-1">−</button><button class="num" data-a="edlpad" data-i="'+i+'">'+nf(q)+'</button><button class="pm plus" data-a="edl" data-i="'+i+'" data-s="1">+</button><button class="mini" style="color:#c92a2a" data-a="edldel" data-i="'+i+'">✕</button></div>'});
+  e.lineas.forEach(function(l,i){used[l.pid]=1;var q=edQ(l);h+='<div class="mrow'+(q>0||rec?'':' off')+'"><div class="grow"><b>'+esc(l.nombre)+'</b><div class="meta">'+fmtL(q,l)+(rec?' contado':'')+'</div></div><button class="pm" data-a="edl" data-i="'+i+'" data-s="-1">−</button><button class="num" data-a="edlpad" data-i="'+i+'">'+nf(q)+'</button><button class="pm plus" data-a="edl" data-i="'+i+'" data-s="1">+</button>'+(e.tipo==='carga'?'<button class="mini" data-a="edlpr" data-i="'+i+'">💶 '+(lpr(l)?eur(lpr(l)):'precio')+'</button>':'')+'<button class="mini" style="color:#c92a2a" data-a="edldel" data-i="'+i+'">✕</button></div>'});
   var av=prodList().filter(function(p){return !used[p.id]});
   if(av.length)h+='<div class="hr" style="margin-top:8px"><select id="eadd" class="in" style="flex:1"><option value="">＋ Añadir producto…</option>'+av.map(function(p){return '<option value="'+p.id+'">'+esc(p.nombre)+'</option>'}).join('')+'</select><button class="ghost" data-a="edladd">Añadir</button></div>';
   if(e.tipo==='carga'||e.material.length){
     h+='<label class="lb">Material ('+e.material.length+')</label>';
-    e.material.forEach(function(m,i){h+='<div class="mrow'+(m.cant>0?'':' off')+'"><div class="grow">'+esc(m.nombre)+'</div><button class="pm" data-a="edm" data-i="'+i+'" data-s="-1">−</button><button class="num" data-a="edmpad" data-i="'+i+'">'+m.cant+'</button><button class="pm plus" data-a="edm" data-i="'+i+'" data-s="1">+</button><button class="mini" style="color:#c92a2a" data-a="edmdel" data-i="'+i+'">✕</button></div>'});
+    e.material.forEach(function(m,i){h+='<div class="mrow'+(m.cant>0?'':' off')+'"><div class="grow">'+esc(m.nombre)+'</div><button class="pm" data-a="edm" data-i="'+i+'" data-s="-1">−</button><button class="num" data-a="edmpad" data-i="'+i+'">'+m.cant+'</button><button class="pm plus" data-a="edm" data-i="'+i+'" data-s="1">+</button>'+(e.tipo==='carga'?'<button class="mini" data-a="edmpr" data-i="'+i+'">💶 '+(+m.precio>0?eur(m.precio):(mpr(m.nombre)?eur(mpr(m.nombre)):'precio'))+'</button>':'')+'<button class="mini" style="color:#c92a2a" data-a="edmdel" data-i="'+i+'">✕</button></div>'});
     h+='<div class="hr" style="margin-top:8px"><input id="emat" class="in" style="flex:1" placeholder="Añadir material…"><button class="ghost" data-a="edmadd">Añadir</button></div>';
   }
   h+='<label class="lb">Nota (opcional)</label><textarea id="enota" class="in" rows="2">'+esc(e.nota)+'</textarea>';
@@ -564,7 +564,7 @@ function opRow(o,exp){
 function eur(x){return (Math.round((+x||0)*100)/100).toFixed(2).replace('.',',')+' €'}
 function lpr(l){if(l.precio!=null&&+l.precio>0)return +l.precio;var p=S.prods[l.pid];return p&&+p.precio>0?+p.precio:0}
 function mpr(nombre){var k=norm(nombre),mp=S.cfg.mpre||{};if(Object.prototype.hasOwnProperty.call(mp,k))return +mp[k]>0?+mp[k]:0;var r=0;prodList().forEach(function(p){if(!r&&norm(p.nombre)===k&&+p.precio>0)r=+p.precio});return r}
-function matRows(o){var en={},r=[];o.lineas.forEach(function(l){en[norm(l.nombre)]=1});(o.material||[]).forEach(function(m){if(!(m.cant>0)||en[norm(m.nombre)])return;var pr=mpr(m.nombre);if(pr>0)r.push({m:m,pr:pr,im:r2(m.cant*pr)})});return r}
+function matRows(o){var en={},r=[];o.lineas.forEach(function(l){en[norm(l.nombre)]=1});(o.material||[]).forEach(function(m){if(!(m.cant>0)||(en[norm(m.nombre)]&&!(+m.precio>0)))return;var pr=+m.precio>0?+m.precio:mpr(m.nombre);if(pr>0)r.push({m:m,pr:pr,im:r2(m.cant*pr)})});return r}
 function hasPr(o){return o.lineas.some(function(l){return lpr(l)>0})||matRows(o).length>0}
 function backOf(o){var back={},n=0;S.ops.forEach(function(d){if(d.tipo==='devolucion'&&d.link===o.id){n++;d.lineas.forEach(function(l){back[l.pid]=(back[l.pid]||0)+l.cant})}});return n?back:null}
 function valorHtml(o){
@@ -573,7 +573,7 @@ function valorHtml(o){
   var t=0,h='<label class="lb">💶 Valor de lo que sale (precio de venta)</label><table><tr><th>Producto</th><th class="r">Cantidad</th><th class="r">Precio/ud</th><th class="r">Importe</th></tr>';
   o.lineas.forEach(function(l){var pr=lpr(l),im=r2(l.cant*pr);t+=im;h+='<tr><td>'+esc(l.nombre)+'</td><td class="r">'+fmtL(l.cant,l)+'<div class="meta">'+nf(l.cant)+' '+pl(l.ud||'ud',l.cant)+'</div></td><td class="r">'+(pr?eur(pr):'—')+'</td><td class="r"><b>'+(pr?eur(im):'—')+'</b></td></tr>'});
   var mr=matRows(o);if(mr.length){h+='<tr><td colspan="4"><b>Material y alquiler</b></td></tr>';mr.forEach(function(x){t+=x.im;h+='<tr><td>'+esc(x.m.nombre)+'</td><td class="r">x '+nf(x.m.cant)+'</td><td class="r">'+eur(x.pr)+'</td><td class="r"><b>'+eur(x.im)+'</b></td></tr>'})}
-  return h+'<tr><td colspan="3"><b>TOTAL</b></td><td class="r"><b style="font-size:20px">'+eur(t)+'</b></td></tr></table>';
+  return h+'<tr><td colspan="3"><b>TOTAL</b></td><td class="r"><b style="font-size:20px">'+eur(t)+'</b></td></tr></table><p class="meta">Para poner otro precio solo en este pedido (por ejemplo, un Co2 empezado), pulsa <b>✏️ Editar</b> y toca <b>💶</b> en esa línea.</p>';
 }
 function liqTotal(o){var back=backOf(o)||{},t=0;o.lineas.forEach(function(l){var c=Math.max(0,r2(l.cant-(back[l.pid]||0)));t+=c*lpr(l)});matRows(o).forEach(function(x){t+=x.im});return r2(t)}
 function liqText(o){
@@ -890,6 +890,8 @@ var A={
   edmpad:function(t,d){edSync();var m=UI.ed.material[d.i];openPad({title:m.nombre,init:m.cant,color:MODES.carga.c,cb:function(v){m.cant=parseInt(v||'0',10)||0;setTimeout(edKeep,0)},back:edKeep})},
   edmdel:function(t,d){edSync();UI.ed.material.splice(+d.i,1);edKeep()},
   edmadd:function(){edSync();var i=$('#emat'),v=i?i.value.trim():'';if(!v)return;UI.ed.material.push({id:uid(),nombre:v,cant:1,chk:false});edKeep()},
+  edlpr:function(t,d){edSync();var l=UI.ed.lineas[d.i];openPad({title:'Precio por '+(l.ud||'ud')+' · '+l.nombre+' (solo este pedido)',init:lpr(l)?nf(lpr(l)):'',dec:true,color:'#2b8a3e',cb:function(v){var x=pnum(v);if(x>0)l.precio=x;else delete l.precio;setTimeout(edKeep,0)},back:edKeep})},
+  edmpr:function(t,d){edSync();var m=UI.ed.material[d.i];openPad({title:'Precio por unidad · '+m.nombre+' (solo este pedido)',init:+m.precio>0?nf(m.precio):(mpr(m.nombre)?nf(mpr(m.nombre)):''),dec:true,color:'#2b8a3e',cb:function(v){var x=pnum(v);if(x>0)m.precio=x;else delete m.precio;setTimeout(edKeep,0)},back:edKeep})},
   edsave:function(){edSave()},
   precios:function(){var ps=prodList(),cat=null,h='<div class="ov" data-a="noop"><div class="sheet" data-a="noop"><h2>💶 Precios de venta</h2><p class="meta">Precio al que se lo cobras al cliente, por unidad (lata, botella, bolsa…). Déjalo vacío si no se cobra.</p>';
     ps.forEach(function(p){if(p.cat!==cat){cat=p.cat;h+='<div class="sec" style="margin-top:12px"><h3>'+esc(cat)+'</h3></div>'}h+='<div class="mrow"><div class="grow"><b>'+esc(p.nombre)+'</b><div class="meta">€ por '+esc(udn(p))+(pc(p)>1?' · caja de '+pc(p):'')+'</div></div><input id="pr_'+p.id+'" class="in" style="width:120px;text-align:right" inputmode="decimal" value="'+(+p.precio>0?nf(p.precio):'')+'" placeholder="0,00"></div>'});
